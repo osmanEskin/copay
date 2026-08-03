@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Share } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Text, Card, Avatar, Button, Input, Divider, Badge, Modal, Loading } from '../../../components';
-import { colors, spacing } from '../../../theme';
+import { colors, spacing, radius, shadow } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { confirmAsync } from '../../../utils/confirm';
 import { ApiError } from '../../../services/api';
@@ -23,6 +23,7 @@ export default function GroupScreen() {
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [addGroupModalVisible, setAddGroupModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -55,10 +56,10 @@ export default function GroupScreen() {
     setErrorMessage(undefined);
     setIsSubmitting(true);
     try {
-      await createGroup(groupName);
+      const newGroup = await createGroup(groupName);
       setCreateModalVisible(false);
       setGroupName('');
-      await loadData();
+      setGroup(await getGroup(newGroup.id));
     } catch (error) {
       setErrorMessage(
         error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
@@ -72,10 +73,10 @@ export default function GroupScreen() {
     setErrorMessage(undefined);
     setIsSubmitting(true);
     try {
-      await joinGroup(joinCode);
+      const joinedGroup = await joinGroup(joinCode);
       setJoinModalVisible(false);
       setJoinCode('');
-      await loadData();
+      setGroup(await getGroup(joinedGroup.id));
     } catch (error) {
       setErrorMessage(
         error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
@@ -142,7 +143,13 @@ export default function GroupScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <Text variant="h2" color={colors.text.primary}>Grup Yönetimi</Text>
-        <View style={{ width: 40 }} />
+        {group ? (
+          <TouchableOpacity style={styles.backButton} onPress={() => setAddGroupModalVisible(true)}>
+            <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       {isLoading ? (
@@ -233,6 +240,32 @@ export default function GroupScreen() {
           <View style={styles.bottomBar}>
             <Button title="Gruptan Ayrıl" variant="danger" onPress={handleLeaveGroup} />
           </View>
+
+          {/* YENİ GRUP MODALI (grup içindeyken) */}
+          <Modal visible={addGroupModalVisible} title="Yeni Grup" onClose={() => setAddGroupModalVisible(false)}>
+            <View style={styles.modalContent}>
+              <TouchableOpacity
+                style={styles.modalOption}
+                onPress={() => {
+                  setAddGroupModalVisible(false);
+                  setCreateModalVisible(true);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={24} color={colors.text.primary} />
+                <Text variant="body" weight="medium" style={styles.modalOptionText}>Grup Oluştur</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalOption}
+                onPress={() => {
+                  setAddGroupModalVisible(false);
+                  setJoinModalVisible(true);
+                }}
+              >
+                <Ionicons name="key-outline" size={24} color={colors.text.primary} />
+                <Text variant="body" weight="medium" style={styles.modalOptionText}>Kod ile Katıl</Text>
+              </TouchableOpacity>
+            </View>
+          </Modal>
 
           {/* DAVET MODALI */}
           <Modal visible={inviteModalVisible} title="Davet Et" onClose={() => setInviteModalVisible(false)}>
@@ -375,14 +408,13 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.background,
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingBottom: spacing.xxl,
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    ...shadow.lg,
   },
   modalContent: {
     gap: spacing.sm,

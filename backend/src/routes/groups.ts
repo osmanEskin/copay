@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { jwt } from 'hono/jwt'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { groupMembers, groupRole, groups, users } from '../db/schema.js'
 
@@ -63,6 +63,7 @@ groupsRoute.get('/mine', async (c) => {
     .from(groupMembers)
     .innerJoin(groups, eq(groups.id, groupMembers.groupId))
     .where(eq(groupMembers.userId, payload.sub))
+    .orderBy(desc(groupMembers.joinedAt))
 
   const withCounts = await Promise.all(
     rows.map(async (group) => {
