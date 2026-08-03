@@ -3,6 +3,7 @@ import { pgTable, uuid, text, numeric, date, boolean, timestamp, uniqueIndex } f
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  username: text('username'),
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),

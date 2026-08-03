@@ -4,6 +4,7 @@ import { getToken, setToken, deleteToken } from "./tokenStorage";
 export interface AuthUser {
   id: string;
   name: string;
+  username?: string | null;
   email: string;
   twoFactorEnabled?: boolean;
 }
@@ -81,6 +82,21 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null;
   }
   return apiFetch<AuthUser>("/auth/me", { token });
+}
+
+export async function updateProfile(
+  name: string,
+  username: string | null
+): Promise<AuthUser> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  return apiFetch<AuthUser>("/auth/profile", {
+    method: "PATCH",
+    body: { name, username },
+    token,
+  });
 }
 
 export async function forgotPassword(email: string): Promise<{ message: string }> {

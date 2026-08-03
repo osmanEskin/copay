@@ -1,23 +1,53 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Text, Input, Button, Avatar, Modal } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '../../../services/api';
+import { getCurrentUser, updateProfile } from '../../../services/auth';
 
 export default function AccountScreen() {
-  const [firstName, setFirstName] = useState('Seyit Osman');
-  const [lastName, setLastName] = useState('Eşkin');
-  const [username, setUsername] = useState('seyitosman');
-  const [phone, setPhone] = useState('+90 555 123 4567');
-  const [email, setEmail] = useState('seyit@example.com');
-  
-  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
 
-  const handleSave = () => {
-    // API request here
-    router.replace('/profile');
+  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (!user) {
+        return;
+      }
+      const [first, ...rest] = user.name.split(' ');
+      setFirstName(first ?? '');
+      setLastName(rest.join(' '));
+      setUsername(user.username ?? '');
+      setEmail(user.email);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setErrorMessage(undefined);
+    setIsSaving(true);
+    try {
+      const name = [firstName, lastName].filter(Boolean).join(' ');
+      await updateProfile(name, username || null);
+      router.replace('/profile');
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || '?';
 
   const handleChangePhoto = (option: string) => {
     setAvatarModalVisible(false);
@@ -42,7 +72,7 @@ export default function AccountScreen() {
         {/* AVATAR DÜZENLEME */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
-            <Avatar initials="SE" size={100} />
+            <Avatar initials={initials} size={100} />
             <TouchableOpacity 
               style={styles.editAvatarBtn} 
               onPress={() => setAvatarModalVisible(true)}
@@ -54,18 +84,18 @@ export default function AccountScreen() {
 
         {/* FORM */}
         <View style={styles.formSection}>
-          <Input label="Ad" value={firstName} onChangeText={setFirstName} />
+          <Input label="Ad" value={firstName} onChangeText={setFirstName} error={errorMessage} />
           <Input label="Soyad" value={lastName} onChangeText={setLastName} />
           <Input label="Kullanıcı Adı (Opsiyonel)" value={username} onChangeText={setUsername} autoCapitalize="none" />
           <Input label="Telefon (Opsiyonel)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-          
-          <Input 
-            label="E-posta" 
-            value={email} 
-            onChangeText={setEmail} 
-            autoCapitalize="none" 
+
+          <Input
+            label="E-posta"
+            value={email}
+            editable={false}
+            autoCapitalize="none"
             keyboardType="email-address"
-            // E-posta genelde özel doğrulama gerektirir, şimdilik sadece gösteriliyor
+            // E-posta değişikliği doğrulama gerektirir, şimdilik sadece gösteriliyor
           />
         </View>
         
@@ -80,9 +110,10 @@ export default function AccountScreen() {
           onPress={() => router.push('/profile/security')}
           style={{ marginBottom: spacing.md }}
         />
-        <Button 
-          title="Değişiklikleri Kaydet" 
-          onPress={handleSave} 
+        <Button
+          title="Değişiklikleri Kaydet"
+          onPress={handleSave}
+          isLoading={isSaving}
         />
       </View>
 
