@@ -1,20 +1,28 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { Button, Input, Screen, Text } from "../../components";
 import { colors, spacing } from "../../theme";
+import { ApiError } from "../../services/api";
+import { login } from "../../services/auth";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await login(email, password);
       router.replace("/home");
-    }, 1000);
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : "Giriş yapılamadı, lütfen tekrar deneyin.";
+      Alert.alert("Giriş Başarısız", message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
