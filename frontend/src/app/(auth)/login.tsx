@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Button, Input, Screen, Text } from "../../components";
 import { colors, spacing } from "../../theme";
 import { ApiError } from "../../services/api";
@@ -10,16 +10,22 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
   const handleLogin = async () => {
+    setErrorMessage(undefined);
     setIsLoading(true);
     try {
-      await login(email, password);
-      router.replace("/home");
+      const result = await login(email, password);
+      if ("twoFactorRequired" in result) {
+        router.push({ pathname: "/verify-2fa", params: { email: result.email } });
+      } else {
+        router.replace("/home");
+      }
     } catch (error) {
-      const message =
-        error instanceof ApiError ? error.message : "Giriş yapılamadı, lütfen tekrar deneyin.";
-      Alert.alert("Giriş Başarısız", message);
+      setErrorMessage(
+        error instanceof ApiError ? error.message : "Giriş yapılamadı, lütfen tekrar deneyin."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -54,6 +60,7 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             placeholder="••••••••"
             secureTextEntry
+            error={errorMessage}
           />
 
           <View style={styles.forgotPassword}>

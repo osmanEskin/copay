@@ -5,11 +5,17 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  twoFactorEnabled?: boolean;
 }
 
 interface AuthResponse {
   token: string;
   user: AuthUser;
+}
+
+interface TwoFactorRequiredResponse {
+  twoFactorRequired: true;
+  email: string;
 }
 
 export async function register(
@@ -28,13 +34,39 @@ export async function register(
 export async function login(
   email: string,
   password: string
-): Promise<AuthResponse> {
-  const result = await apiFetch<AuthResponse>("/auth/login", {
+): Promise<AuthResponse | TwoFactorRequiredResponse> {
+  const result = await apiFetch<AuthResponse | TwoFactorRequiredResponse>("/auth/login", {
     method: "POST",
     body: { email, password },
   });
+  if ("token" in result) {
+    await setToken(result.token);
+  }
+  return result;
+}
+
+export async function verifyTwoFactor(email: string, code: string): Promise<AuthResponse> {
+  const result = await apiFetch<AuthResponse>("/auth/login/verify-2fa", {
+    method: "POST",
+    body: { email, code },
+  });
   await setToken(result.token);
   return result;
+}
+
+export async function setTwoFactorEnabled(
+  enabled: boolean,
+  password: string
+): Promise<{ twoFactorEnabled: boolean }> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  return apiFetch("/auth/2fa", {
+    method: "PATCH",
+    body: { enabled, password },
+    token,
+  });
 }
 
 export { getToken };

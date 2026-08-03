@@ -1,16 +1,56 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Text, Card, Input, Button, Modal, Divider } from '../../../components';
 import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '../../../services/api';
+import { getCurrentUser, setTwoFactorEnabled } from '../../../services/auth';
 
 export default function SecurityScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  
+
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  const [twoFactorEnabled, setTwoFactorEnabledState] = useState(false);
+  const [twoFactorModalVisible, setTwoFactorModalVisible] = useState(false);
+  const [pendingTwoFactorValue, setPendingTwoFactorValue] = useState(false);
+  const [twoFactorPassword, setTwoFactorPassword] = useState('');
+  const [twoFactorError, setTwoFactorError] = useState<string | undefined>();
+  const [isTwoFactorLoading, setIsTwoFactorLoading] = useState(false);
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user) {
+        setTwoFactorEnabledState(!!user.twoFactorEnabled);
+      }
+    });
+  }, []);
+
+  const handleToggleTwoFactor = (value: boolean) => {
+    setPendingTwoFactorValue(value);
+    setTwoFactorPassword('');
+    setTwoFactorError(undefined);
+    setTwoFactorModalVisible(true);
+  };
+
+  const handleConfirmTwoFactor = async () => {
+    setTwoFactorError(undefined);
+    setIsTwoFactorLoading(true);
+    try {
+      const result = await setTwoFactorEnabled(pendingTwoFactorValue, twoFactorPassword);
+      setTwoFactorEnabledState(result.twoFactorEnabled);
+      setTwoFactorModalVisible(false);
+    } catch (error) {
+      setTwoFactorError(
+        error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    } finally {
+      setIsTwoFactorLoading(false);
+    }
+  };
 
   const handleChangePassword = () => {
     Alert.alert("Başarılı", "Şifreniz başarıyla değiştirildi.");
@@ -72,6 +112,28 @@ export default function SecurityScreen() {
             disabled={!currentPassword || !newPassword}
             style={{ marginTop: spacing.md }}
           />
+        </Card>
+
+        {/* İKİ AŞAMALI DOĞRULAMA */}
+        <Text variant="h2" style={styles.sectionTitle}>İki Aşamalı Doğrulama</Text>
+        <Card style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Ionicons name="shield-checkmark-outline" size={24} color={colors.text.primary} />
+              <View style={styles.rowText}>
+                <Text variant="body" weight="semibold">Email ile Doğrulama</Text>
+                <Text variant="caption" color={colors.text.secondary}>
+                  Açıkken giriş yaparken email'inize kod gönderilir
+                </Text>
+              </View>
+            </View>
+            <Switch
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.surface}
+              onValueChange={handleToggleTwoFactor}
+              value={twoFactorEnabled}
+            />
+          </View>
         </Card>
 
         {/* OTURUM YÖNETİMİ */}
@@ -139,6 +201,41 @@ export default function SecurityScreen() {
               variant="danger" 
               disabled={deleteConfirmText !== 'HESABI SİL'}
               onPress={handleDeleteAccount} 
+              style={{ flex: 1 }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* 2FA ONAY MODALI */}
+      <Modal
+        visible={twoFactorModalVisible}
+        title={pendingTwoFactorValue ? 'İki Aşamalı Doğrulamayı Aç' : 'İki Aşamalı Doğrulamayı Kapat'}
+        onClose={() => setTwoFactorModalVisible(false)}
+      >
+        <View style={styles.modalContent}>
+          <Text variant="body" color={colors.text.secondary} style={{ marginBottom: spacing.md }}>
+            Onaylamak için şifrenizi girin.
+          </Text>
+          <Input
+            label="Şifre"
+            value={twoFactorPassword}
+            onChangeText={setTwoFactorPassword}
+            secureTextEntry
+            error={twoFactorError}
+          />
+          <View style={styles.modalActions}>
+            <Button
+              title="Vazgeç"
+              variant="outline"
+              onPress={() => setTwoFactorModalVisible(false)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Onayla"
+              onPress={handleConfirmTwoFactor}
+              isLoading={isTwoFactorLoading}
+              disabled={!twoFactorPassword}
               style={{ flex: 1 }}
             />
           </View>

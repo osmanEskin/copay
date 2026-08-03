@@ -6,7 +6,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { passwordResetCodes, users } from '../db/schema.js'
+import { passwordResetCodes, twoFactorCodes, users } from '../db/schema.js'
 import { sendEmail } from '../lib/email.js'
 
 const JWT_SECRET = process.env.JWT_SECRET
@@ -50,6 +50,50 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     return c.json({ error: 'Geçersiz email veya şifre' }, 401)
   }
 
+  if (user.twoFactorEnabled) {
+    const code = randomInt(100000, 999999).toString()
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+    await db.insert(twoFactorCodes).values({ userId: user.id, code, expiresAt })
+    await sendEmail({
+      to: user.email,
+      subject: 'Giriş Doğrulama Kodu',
+      html: `<p>Giriş yapmak için doğrulama kodunuz: <strong>${code}</strong></p><p>Bu kod 10 dakika içinde geçerliliğini kaybedecek.</p>`,
+    })
+    return c.json({ twoFactorRequired: true, email: user.email })
+  }
+
+  const token = await sign({ sub: user.id, email: user.email }, JWT_SECRET)
+  return c.json({ token, user: { id: user.id, name: user.name, email: user.email } })
+})
+
+const verifyTwoFactorSchema = z.object({
+  email: z.string().email(),
+  code: z.string().length(6),
+})
+
+auth.post('/login/verify-2fa', zValidator('json', verifyTwoFactorSchema), async (c) => {
+  const { email, code } = c.req.valid('json')
+
+  const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+  if (!user) {
+    return c.json({ error: 'Geçersiz veya süresi dolmuş kod' }, 400)
+  }
+
+  const twoFactorCode = await db.query.twoFactorCodes.findFirst({
+    where: and(
+      eq(twoFactorCodes.userId, user.id),
+      eq(twoFactorCodes.code, code),
+      isNull(twoFactorCodes.usedAt)
+    ),
+    orderBy: desc(twoFactorCodes.createdAt),
+  })
+
+  if (!twoFactorCode || twoFactorCode.expiresAt < new Date()) {
+    return c.json({ error: 'Geçersiz veya süresi dolmuş kod' }, 400)
+  }
+
+  await db.update(twoFactorCodes).set({ usedAt: new Date() }).where(eq(twoFactorCodes.id, twoFactorCode.id))
+
   const token = await sign({ sub: user.id, email: user.email }, JWT_SECRET)
   return c.json({ token, user: { id: user.id, name: user.name, email: user.email } })
 })
@@ -60,7 +104,26 @@ auth.get('/me', jwt({ secret: JWT_SECRET, alg: 'HS256' }), async (c) => {
   if (!user) {
     return c.json({ error: 'Kullanıcı bulunamadı' }, 404)
   }
-  return c.json({ id: user.id, name: user.name, email: user.email })
+  return c.json({ id: user.id, name: user.name, email: user.email, twoFactorEnabled: user.twoFactorEnabled })
+})
+
+const setTwoFactorSchema = z.object({
+  enabled: z.boolean(),
+  password: z.string().min(1),
+})
+
+auth.patch('/2fa', jwt({ secret: JWT_SECRET, alg: 'HS256' }), zValidator('json', setTwoFactorSchema), async (c) => {
+  const payload = c.get('jwtPayload') as { sub: string }
+  const { enabled, password } = c.req.valid('json')
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.sub) })
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return c.json({ error: 'Şifre yanlış' }, 401)
+  }
+
+  await db.update(users).set({ twoFactorEnabled: enabled }).where(eq(users.id, user.id))
+
+  return c.json({ twoFactorEnabled: enabled })
 })
 
 const forgotPasswordSchema = z.object({
