@@ -14,14 +14,29 @@ import {
   joinGroup,
   removeMember,
   updateMemberRole,
+  type Group,
   type GroupDetail,
   type GroupMember,
 } from '../../../services/groups';
 
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
 export default function GroupScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [group, setGroup] = useState<GroupDetail | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [groupDetail, setGroupDetail] = useState<GroupDetail | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
 
   const [addGroupModalVisible, setAddGroupModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -35,22 +50,30 @@ export default function GroupScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
-  const loadData = async () => {
+  const loadGroups = async () => {
     setIsLoading(true);
     const [user, myGroups] = await Promise.all([getCurrentUser(), getMyGroups()]);
     setCurrentUserId(user?.id ?? null);
-    if (myGroups.length > 0) {
-      const detail = await getGroup(myGroups[0].id);
-      setGroup(detail);
-    } else {
-      setGroup(null);
-    }
+    setGroups(myGroups);
     setIsLoading(false);
   };
 
   useEffect(() => {
-    loadData();
+    loadGroups();
   }, []);
+
+  const selectGroup = async (groupId: string) => {
+    setSelectedGroupId(groupId);
+    setIsDetailLoading(true);
+    setGroupDetail(await getGroup(groupId));
+    setIsDetailLoading(false);
+  };
+
+  const backToList = () => {
+    setSelectedGroupId(null);
+    setGroupDetail(null);
+    loadGroups();
+  };
 
   const handleCreateGroup = async () => {
     setErrorMessage(undefined);
@@ -59,7 +82,8 @@ export default function GroupScreen() {
       const newGroup = await createGroup(groupName);
       setCreateModalVisible(false);
       setGroupName('');
-      setGroup(await getGroup(newGroup.id));
+      await loadGroups();
+      await selectGroup(newGroup.id);
     } catch (error) {
       setErrorMessage(
         error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
@@ -76,7 +100,8 @@ export default function GroupScreen() {
       const joinedGroup = await joinGroup(joinCode);
       setJoinModalVisible(false);
       setJoinCode('');
-      setGroup(await getGroup(joinedGroup.id));
+      await loadGroups();
+      await selectGroup(joinedGroup.id);
     } catch (error) {
       setErrorMessage(
         error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
@@ -87,12 +112,12 @@ export default function GroupScreen() {
   };
 
   const handleShareInvite = () => {
-    if (!group) return;
-    Share.share({ message: `Copay grubuma katıl: ${group.inviteCode}` }).catch(() => {});
+    if (!groupDetail) return;
+    Share.share({ message: `Copay grubuma katıl: ${groupDetail.inviteCode}` }).catch(() => {});
   };
 
   const handleLeaveGroup = async () => {
-    if (!group || !currentUserId) return;
+    if (!groupDetail || !currentUserId) return;
     const confirmed = await confirmAsync(
       'Gruptan Ayrıl',
       'Bu gruptan ayrılmak istediğinize emin misiniz?',
@@ -100,8 +125,8 @@ export default function GroupScreen() {
     );
     if (!confirmed) return;
 
-    await removeMember(group.id, currentUserId);
-    router.replace('/profile');
+    await removeMember(groupDetail.id, currentUserId);
+    backToList();
   };
 
   const handleMemberAction = (member: GroupMember) => {
@@ -111,15 +136,15 @@ export default function GroupScreen() {
   };
 
   const handleToggleRole = async () => {
-    if (!group || !selectedMember) return;
+    if (!groupDetail || !selectedMember) return;
     const nextRole = selectedMember.role === 'admin' ? 'member' : 'admin';
     setMemberOptionsVisible(false);
-    await updateMemberRole(group.id, selectedMember.userId, nextRole);
-    await loadData();
+    await updateMemberRole(groupDetail.id, selectedMember.userId, nextRole);
+    await selectGroup(groupDetail.id);
   };
 
   const handleRemoveMember = async () => {
-    if (!group || !selectedMember) return;
+    if (!groupDetail || !selectedMember) return;
     setMemberOptionsVisible(false);
     const confirmed = await confirmAsync(
       'Üyeyi Çıkar',
@@ -128,22 +153,27 @@ export default function GroupScreen() {
     );
     if (!confirmed) return;
 
-    await removeMember(group.id, selectedMember.userId);
-    await loadData();
+    await removeMember(groupDetail.id, selectedMember.userId);
+    await selectGroup(groupDetail.id);
   };
 
-  const myRole = group?.members.find((m) => m.userId === currentUserId)?.role;
+  const myRole = groupDetail?.members.find((m) => m.userId === currentUserId)?.role;
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
 
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/profile')}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => selectedGroupId ? backToList() : router.replace('/profile')}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text variant="h2" color={colors.text.primary}>Grup Yönetimi</Text>
-        {group ? (
+        <Text variant="h2" color={colors.text.primary} numberOfLines={1}>
+          {selectedGroupId ? (groupDetail?.name ?? '') : 'Gruplarım'}
+        </Text>
+        {groups.length > 0 ? (
           <TouchableOpacity style={styles.backButton} onPress={() => setAddGroupModalVisible(true)}>
             <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
           </TouchableOpacity>
@@ -154,7 +184,7 @@ export default function GroupScreen() {
 
       {isLoading ? (
         <Loading />
-      ) : !group ? (
+      ) : groups.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="people-outline" size={64} color={colors.text.secondary} />
           <Text variant="h2" align="center" style={styles.emptyTitle}>Henüz bir grubun yok</Text>
@@ -164,6 +194,31 @@ export default function GroupScreen() {
           <Button title="Grup Oluştur" onPress={() => setCreateModalVisible(true)} style={styles.emptyBtn} />
           <Button title="Kod ile Katıl" variant="outline" onPress={() => setJoinModalVisible(true)} style={styles.emptyBtn} />
         </View>
+      ) : !selectedGroupId ? (
+        // GRUP LİSTESİ
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          {groups.map((group) => (
+            <TouchableOpacity key={group.id} activeOpacity={0.7} onPress={() => selectGroup(group.id)}>
+              <Card style={styles.groupListCard}>
+                <View style={styles.groupListIconWrapper}>
+                  <Ionicons name="home" size={28} color={colors.primary} />
+                </View>
+                <View style={styles.groupListInfo}>
+                  <Text variant="body" weight="semibold">{group.name}</Text>
+                  <Text variant="caption" color={colors.text.secondary}>{group.memberCount} Üye</Text>
+                </View>
+                <Badge
+                  label={group.role === 'admin' ? 'Admin' : 'Üye'}
+                  variant={group.role === 'admin' ? 'primary' : 'default'}
+                />
+                <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} style={{ marginLeft: spacing.sm }} />
+              </Card>
+            </TouchableOpacity>
+          ))}
+          <View style={{ height: spacing.xl }} />
+        </ScrollView>
+      ) : isDetailLoading || !groupDetail ? (
+        <Loading />
       ) : (
         <>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -173,9 +228,9 @@ export default function GroupScreen() {
               <View style={styles.groupIconWrapper}>
                 <Ionicons name="home" size={40} color={colors.primary} />
               </View>
-              <Text variant="h1">{group.name}</Text>
+              <Text variant="h1">{groupDetail.name}</Text>
               <Text variant="body" color={colors.text.secondary}>
-                {group.members.length} Üye
+                {groupDetail.members.length} Üye
               </Text>
             </Card>
 
@@ -194,15 +249,8 @@ export default function GroupScreen() {
             </View>
 
             <Card noPadding style={styles.membersCard}>
-              {group.members.map((member, index) => {
+              {groupDetail.members.map((member, index) => {
                 const isSelf = member.userId === currentUserId;
-                const initials = member.name
-                  .split(' ')
-                  .filter(Boolean)
-                  .map((part) => part.charAt(0))
-                  .slice(0, 2)
-                  .join('')
-                  .toUpperCase();
 
                 return (
                   <React.Fragment key={member.userId}>
@@ -211,7 +259,7 @@ export default function GroupScreen() {
                       onPress={() => handleMemberAction(member)}
                       activeOpacity={isSelf ? 1 : 0.7}
                     >
-                      <Avatar initials={initials} size={44} />
+                      <Avatar initials={initialsOf(member.name)} size={44} />
                       <View style={styles.memberInfo}>
                         <Text variant="body" weight="semibold">
                           {member.name}{isSelf ? ' (Sen)' : ''}
@@ -227,7 +275,7 @@ export default function GroupScreen() {
                         <Ionicons name="ellipsis-vertical" size={20} color={colors.text.secondary} style={{ marginLeft: spacing.sm }} />
                       )}
                     </TouchableOpacity>
-                    {index < group.members.length - 1 && <Divider />}
+                    {index < groupDetail.members.length - 1 && <Divider />}
                   </React.Fragment>
                 );
               })}
@@ -241,37 +289,11 @@ export default function GroupScreen() {
             <Button title="Gruptan Ayrıl" variant="danger" onPress={handleLeaveGroup} />
           </View>
 
-          {/* YENİ GRUP MODALI (grup içindeyken) */}
-          <Modal visible={addGroupModalVisible} title="Yeni Grup" onClose={() => setAddGroupModalVisible(false)}>
-            <View style={styles.modalContent}>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setAddGroupModalVisible(false);
-                  setCreateModalVisible(true);
-                }}
-              >
-                <Ionicons name="add-circle-outline" size={24} color={colors.text.primary} />
-                <Text variant="body" weight="medium" style={styles.modalOptionText}>Grup Oluştur</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setAddGroupModalVisible(false);
-                  setJoinModalVisible(true);
-                }}
-              >
-                <Ionicons name="key-outline" size={24} color={colors.text.primary} />
-                <Text variant="body" weight="medium" style={styles.modalOptionText}>Kod ile Katıl</Text>
-              </TouchableOpacity>
-            </View>
-          </Modal>
-
           {/* DAVET MODALI */}
           <Modal visible={inviteModalVisible} title="Davet Et" onClose={() => setInviteModalVisible(false)}>
             <View style={styles.modalContent}>
               <Text variant="caption" color={colors.text.secondary}>Davet Kodu</Text>
-              <Text variant="h1" color={colors.primary} style={styles.inviteCode}>{group.inviteCode}</Text>
+              <Text variant="h1" color={colors.primary} style={styles.inviteCode}>{groupDetail.inviteCode}</Text>
               <Text variant="caption" color={colors.text.secondary} style={{ marginBottom: spacing.md }}>
                 Bu kodu paylaştığın kişiler "Kod ile Katıl" diyerek gruba katılabilir.
               </Text>
@@ -302,6 +324,32 @@ export default function GroupScreen() {
           </Modal>
         </>
       )}
+
+      {/* YENİ GRUP MODALI */}
+      <Modal visible={addGroupModalVisible} title="Yeni Grup" onClose={() => setAddGroupModalVisible(false)}>
+        <View style={styles.modalContent}>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => {
+              setAddGroupModalVisible(false);
+              setCreateModalVisible(true);
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={24} color={colors.text.primary} />
+            <Text variant="body" weight="medium" style={styles.modalOptionText}>Grup Oluştur</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => {
+              setAddGroupModalVisible(false);
+              setJoinModalVisible(true);
+            }}
+          >
+            <Ionicons name="key-outline" size={24} color={colors.text.primary} />
+            <Text variant="body" weight="medium" style={styles.modalOptionText}>Kod ile Katıl</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       {/* GRUP OLUŞTUR MODALI */}
       <Modal visible={createModalVisible} title="Grup Oluştur" onClose={() => setCreateModalVisible(false)}>
@@ -370,6 +418,23 @@ const styles = StyleSheet.create({
   emptyBtn: {
     width: '100%',
     marginBottom: spacing.sm,
+  },
+  groupListCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  groupListIconWrapper: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  groupListInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
   },
   groupCard: {
     alignItems: 'center',
