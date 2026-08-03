@@ -3,18 +3,28 @@ import { View, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Screen, Input, Button, Text } from "../../components";
 import { colors, spacing } from "../../theme";
+import { ApiError } from "../../services/api";
+import { forgotPassword } from "../../services/auth";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
-  const handleSendResetLink = () => {
+  const handleSendResetLink = async () => {
+    setErrorMessage(undefined);
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await forgotPassword(email);
       setIsSent(true);
-    }, 1000);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError ? error.message : "Bir şeyler ters gitti, lütfen tekrar deneyin."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -25,9 +35,9 @@ export default function ForgotPasswordScreen() {
             Şifremi Unuttum
           </Text>
           <Text variant="body" color={colors.text.secondary} align="center">
-            {isSent 
-              ? "E-posta adresinize bir şifre sıfırlama bağlantısı gönderdik."
-              : "Hesabınıza bağlı e-posta adresini girin, size sıfırlama bağlantısı gönderelim."
+            {isSent
+              ? "E-posta adresinize bir şifre sıfırlama kodu gönderdik."
+              : "Hesabınıza bağlı e-posta adresini girin, size sıfırlama kodu gönderelim."
             }
           </Text>
         </View>
@@ -42,13 +52,14 @@ export default function ForgotPasswordScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              error={errorMessage}
             />
           )}
-          
-          <Button 
-            title={isSent ? "Giriş Ekranına Dön" : "Sıfırlama Bağlantısı Gönder"} 
-            onPress={() => isSent ? router.replace("/login") : handleSendResetLink()} 
-            isLoading={isLoading} 
+
+          <Button
+            title={isSent ? "Kodu Gir" : "Sıfırlama Kodu Gönder"}
+            onPress={() => isSent ? router.push({ pathname: "/reset-password", params: { email } }) : handleSendResetLink()}
+            isLoading={isLoading}
             disabled={!isSent && !email}
           />
         </View>

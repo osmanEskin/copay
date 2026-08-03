@@ -50,3 +50,21 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   }
   return apiFetch<AuthUser>("/auth/me", { token });
 }
+
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  return apiFetch("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<{ message: string }> {
+  return apiFetch("/auth/reset-password", {
+    method: "POST",
+    body: { email, code, newPassword },
+  });
+}

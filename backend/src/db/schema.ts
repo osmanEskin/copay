@@ -47,3 +47,12 @@ export const settlements = pgTable('settlements', {
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   settledAt: timestamp('settled_at').notNull().defaultNow(),
 })
+
+export const passwordResetCodes = pgTable('password_reset_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
