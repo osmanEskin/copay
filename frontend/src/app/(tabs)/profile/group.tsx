@@ -30,7 +30,7 @@ export default function GroupScreen() {
       "Bu gruptan ayrılmak istediğinize emin misiniz?",
       [
         { text: "İptal", style: "cancel" },
-        { text: "Ayrıl", style: "destructive", onPress: () => router.back() }
+        { text: "Ayrıl", style: "destructive", onPress: () => router.replace('/profile') }
       ]
     );
   };
@@ -58,7 +58,7 @@ export default function GroupScreen() {
       
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/profile')}>
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <Text variant="h2" color={colors.text.primary}>Grup Yönetimi</Text>

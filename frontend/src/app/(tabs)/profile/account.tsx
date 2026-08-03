@@ -16,7 +16,7 @@ export default function AccountScreen() {
 
   const handleSave = () => {
     // API request here
-    router.back();
+    router.replace('/profile');
   };
 
   const handleChangePhoto = (option: string) => {
@@ -30,7 +30,7 @@ export default function AccountScreen() {
       
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/profile')}>
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <Text variant="h2" color={colors.text.primary}>Hesap Bilgileri</Text>
