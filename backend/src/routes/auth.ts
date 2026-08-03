@@ -34,7 +34,7 @@ auth.post('/register', zValidator('json', registerSchema), async (c) => {
   const [user] = await db.insert(users).values({ name, email, passwordHash }).returning()
 
   const token = await sign({ sub: user.id, email: user.email }, JWT_SECRET)
-  return c.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email } }, 201)
+  return c.json({ token, user: { id: user.id, name: user.name, username: user.username, phone: user.phone, email: user.email } }, 201)
 })
 
 const loginSchema = z.object({
@@ -63,7 +63,7 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
   }
 
   const token = await sign({ sub: user.id, email: user.email }, JWT_SECRET)
-  return c.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email } })
+  return c.json({ token, user: { id: user.id, name: user.name, username: user.username, phone: user.phone, email: user.email } })
 })
 
 const verifyTwoFactorSchema = z.object({
@@ -95,7 +95,7 @@ auth.post('/login/verify-2fa', zValidator('json', verifyTwoFactorSchema), async 
   await db.update(twoFactorCodes).set({ usedAt: new Date() }).where(eq(twoFactorCodes.id, twoFactorCode.id))
 
   const token = await sign({ sub: user.id, email: user.email }, JWT_SECRET)
-  return c.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email } })
+  return c.json({ token, user: { id: user.id, name: user.name, username: user.username, phone: user.phone, email: user.email } })
 })
 
 auth.get('/me', jwt({ secret: JWT_SECRET, alg: 'HS256' }), async (c) => {
@@ -108,6 +108,7 @@ auth.get('/me', jwt({ secret: JWT_SECRET, alg: 'HS256' }), async (c) => {
     id: user.id,
     name: user.name,
     username: user.username,
+    phone: user.phone,
     email: user.email,
     twoFactorEnabled: user.twoFactorEnabled,
   })
@@ -116,15 +117,16 @@ auth.get('/me', jwt({ secret: JWT_SECRET, alg: 'HS256' }), async (c) => {
 const updateProfileSchema = z.object({
   name: z.string().min(1),
   username: z.string().min(1).nullable(),
+  phone: z.string().min(1).nullable(),
 })
 
 auth.patch('/profile', jwt({ secret: JWT_SECRET, alg: 'HS256' }), zValidator('json', updateProfileSchema), async (c) => {
   const payload = c.get('jwtPayload') as { sub: string }
-  const { name, username } = c.req.valid('json')
+  const { name, username, phone } = c.req.valid('json')
 
-  const [user] = await db.update(users).set({ name, username }).where(eq(users.id, payload.sub)).returning()
+  const [user] = await db.update(users).set({ name, username, phone }).where(eq(users.id, payload.sub)).returning()
 
-  return c.json({ id: user.id, name: user.name, username: user.username, email: user.email })
+  return c.json({ id: user.id, name: user.name, username: user.username, phone: user.phone, email: user.email })
 })
 
 const setTwoFactorSchema = z.object({

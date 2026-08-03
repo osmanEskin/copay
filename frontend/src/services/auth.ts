@@ -5,6 +5,7 @@ export interface AuthUser {
   id: string;
   name: string;
   username?: string | null;
+  phone?: string | null;
   email: string;
   twoFactorEnabled?: boolean;
 }
@@ -86,7 +87,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
 export async function updateProfile(
   name: string,
-  username: string | null
+  username: string | null,
+  phone: string | null
 ): Promise<AuthUser> {
   const token = await getToken();
   if (!token) {
@@ -94,7 +96,7 @@ export async function updateProfile(
   }
   return apiFetch<AuthUser>("/auth/profile", {
     method: "PATCH",
-    body: { name, username },
+    body: { name, username, phone },
     token,
   });
 }

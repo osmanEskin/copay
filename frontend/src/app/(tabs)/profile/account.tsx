@@ -27,6 +27,7 @@ export default function AccountScreen() {
       setFirstName(first ?? '');
       setLastName(rest.join(' '));
       setUsername(user.username ?? '');
+      setPhone(user.phone ?? '');
       setEmail(user.email);
     });
   }, []);
@@ -36,7 +37,7 @@ export default function AccountScreen() {
     setIsSaving(true);
     try {
       const name = [firstName, lastName].filter(Boolean).join(' ');
-      await updateProfile(name, username || null);
+      await updateProfile(name, username || null, phone || null);
       router.replace('/profile');
     } catch (error) {
       setErrorMessage(
