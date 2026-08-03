@@ -49,13 +49,23 @@ export default function GroupScreen() {
   const [joinCode, setJoinCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [loadError, setLoadError] = useState<string | undefined>();
+  const [detailError, setDetailError] = useState<string | undefined>();
 
   const loadGroups = async () => {
     setIsLoading(true);
-    const [user, myGroups] = await Promise.all([getCurrentUser(), getMyGroups()]);
-    setCurrentUserId(user?.id ?? null);
-    setGroups(myGroups);
-    setIsLoading(false);
+    setLoadError(undefined);
+    try {
+      const [user, myGroups] = await Promise.all([getCurrentUser(), getMyGroups()]);
+      setCurrentUserId(user?.id ?? null);
+      setGroups(myGroups);
+    } catch (error) {
+      setLoadError(
+        error instanceof ApiError ? error.message : 'Gruplar yüklenemedi, backend çalışıyor mu kontrol et.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -65,8 +75,16 @@ export default function GroupScreen() {
   const selectGroup = async (groupId: string) => {
     setSelectedGroupId(groupId);
     setIsDetailLoading(true);
-    setGroupDetail(await getGroup(groupId));
-    setIsDetailLoading(false);
+    setDetailError(undefined);
+    try {
+      setGroupDetail(await getGroup(groupId));
+    } catch (error) {
+      setDetailError(
+        error instanceof ApiError ? error.message : 'Grup yüklenemedi, backend çalışıyor mu kontrol et.'
+      );
+    } finally {
+      setIsDetailLoading(false);
+    }
   };
 
   const backToList = () => {
@@ -184,6 +202,14 @@ export default function GroupScreen() {
 
       {isLoading ? (
         <Loading />
+      ) : loadError ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.danger} />
+          <Text variant="body" color={colors.text.secondary} align="center" style={styles.emptyTitle}>
+            {loadError}
+          </Text>
+          <Button title="Tekrar Dene" onPress={loadGroups} style={styles.emptyBtn} />
+        </View>
       ) : groups.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="people-outline" size={64} color={colors.text.secondary} />
@@ -217,7 +243,17 @@ export default function GroupScreen() {
           ))}
           <View style={{ height: spacing.xl }} />
         </ScrollView>
-      ) : isDetailLoading || !groupDetail ? (
+      ) : isDetailLoading ? (
+        <Loading />
+      ) : detailError ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.danger} />
+          <Text variant="body" color={colors.text.secondary} align="center" style={styles.emptyTitle}>
+            {detailError}
+          </Text>
+          <Button title="Tekrar Dene" onPress={() => selectGroup(selectedGroupId)} style={styles.emptyBtn} />
+        </View>
+      ) : !groupDetail ? (
         <Loading />
       ) : (
         <>
