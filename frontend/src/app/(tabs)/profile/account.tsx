@@ -99,7 +99,7 @@ export default function AccountScreen() {
           />
         </View>
         
-        <View style={{ height: 100 }} />
+        <View style={{ height: 200 }} />
       </ScrollView>
 
       {/* ALT BUTONLAR */}
