@@ -99,17 +99,11 @@ export default function AccountScreen() {
           />
         </View>
         
-        <View style={{ height: 200 }} />
+        <View style={{ height: 140 }} />
       </ScrollView>
 
       {/* ALT BUTONLAR */}
       <View style={styles.bottomBar}>
-        <Button 
-          title="Şifre Değiştir" 
-          variant="outline" 
-          onPress={() => router.push('/profile/security')}
-          style={{ marginBottom: spacing.md }}
-        />
         <Button
           title="Değişiklikleri Kaydet"
           onPress={handleSave}
