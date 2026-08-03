@@ -7,6 +7,7 @@ import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { confirmAsync } from '../../../utils/confirm';
 import { getCurrentUser, logout } from '../../../services/auth';
+import { getMyGroups } from '../../../services/groups';
 
 // Yardımcı Bileşen: Menü Satırı
 const MenuRow = ({ 
@@ -40,6 +41,7 @@ const MenuRow = ({
 export default function ProfileIndexScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [groupCount, setGroupCount] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -49,6 +51,7 @@ export default function ProfileIndexScreen() {
           setEmail(user.email);
         }
       });
+      getMyGroups().then((groups) => setGroupCount(groups.length));
     }, [])
   );
 
@@ -110,7 +113,7 @@ export default function ProfileIndexScreen() {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>3</Text>
+              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>{groupCount ?? '–'}</Text>
               <Text variant="caption" color={colors.text.secondary} align="center" numberOfLines={1} adjustsFontSizeToFit>Grup</Text>
             </View>
           </View>
