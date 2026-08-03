@@ -19,6 +19,7 @@ export default function LoginScreen() {
 
   return (
     <Screen scrollable safeArea backgroundColor={colors.background}>
+      {/* //ASDASDSADAS213123123 */}
       <View style={styles.container}>
         <View style={styles.header}>
           <Text variant="h1" color={colors.primary} style={styles.title}>
