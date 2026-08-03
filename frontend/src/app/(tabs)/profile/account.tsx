@@ -23,9 +23,10 @@ export default function AccountScreen() {
       if (!user) {
         return;
       }
-      const [first, ...rest] = user.name.split(' ');
-      setFirstName(first ?? '');
-      setLastName(rest.join(' '));
+      const nameParts = user.name.trim().split(/\s+/);
+      const lastName = nameParts.length > 1 ? nameParts.pop()! : '';
+      setFirstName(nameParts.join(' '));
+      setLastName(lastName);
       setUsername(user.username ?? '');
       setPhone(user.phone ?? '');
       setEmail(user.email);
