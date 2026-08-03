@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Screen, Text, Card, Avatar, Divider, Button } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { confirmAsync } from '../../../utils/confirm';
-import { logout } from '../../../services/auth';
+import { getCurrentUser, logout } from '../../../services/auth';
 
 // Yardımcı Bileşen: Menü Satırı
 const MenuRow = ({ 
@@ -37,6 +38,28 @@ const MenuRow = ({
 );
 
 export default function ProfileIndexScreen() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      getCurrentUser().then((user) => {
+        if (user) {
+          setName(user.name);
+          setEmail(user.email);
+        }
+      });
+    }, [])
+  );
+
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || '?';
+
   const handleLogout = async () => {
     const confirmed = await confirmAsync(
       "Çıkış Yap",
@@ -60,9 +83,9 @@ export default function ProfileIndexScreen() {
         
         {/* KULLANICI BİLGİLERİ */}
         <View style={styles.userInfoSection}>
-          <Avatar initials="SE" size={80} style={styles.avatar} />
-          <Text variant="h2">Seyit Osman Eşkin</Text>
-          <Text variant="body" color={colors.text.secondary}>seyit@example.com</Text>
+          <Avatar initials={initials} size={80} style={styles.avatar} />
+          <Text variant="h2">{name}</Text>
+          <Text variant="body" color={colors.text.secondary}>{email}</Text>
           <Text variant="caption" color={colors.text.secondary} style={styles.joinDate}>
             Katılım: Ocak 2026
           </Text>
