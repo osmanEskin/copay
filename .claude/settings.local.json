@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git fetch *)",
       "Bash(git ls-remote *)",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "Bash(npm install *)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(pkill -f \"tsx watch src/index.ts\")"
     ]
   }
 }
