@@ -68,3 +68,25 @@ export const twoFactorCodes = pgTable('two_factor_codes', {
   usedAt: timestamp('used_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+export const groupRole = ['admin', 'member'] as const
+
+export const groups = pgTable('groups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  inviteCode: text('invite_code').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('groups_invite_code_idx').on(table.inviteCode),
+])
+
+export const groupMembers = pgTable('group_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  groupId: uuid('group_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: groupRole }).notNull().default('member'),
+  joinedAt: timestamp('joined_at').notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('group_members_group_user_idx').on(table.groupId, table.userId),
+])

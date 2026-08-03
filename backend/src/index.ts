@@ -5,6 +5,7 @@ import { cors } from 'hono/cors'
 import { sql } from 'drizzle-orm'
 import { db } from './db/index.js'
 import auth from './routes/auth.js'
+import groups from './routes/groups.js'
 
 const app = new Hono()
 
@@ -15,6 +16,7 @@ app.get('/', (c) => {
 })
 
 app.route('/auth', auth)
+app.route('/groups', groups)
 
 app.get('/health/db', async (c) => {
   const result = await db.execute(sql`select 1 as ok`)

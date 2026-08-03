@@ -1,61 +1,141 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Share } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Card, Avatar, Button, Divider, Badge, Modal } from '../../../components';
-import { colors, spacing, radius } from '../../../theme';
+import { Screen, Text, Card, Avatar, Button, Input, Divider, Badge, Modal, Loading } from '../../../components';
+import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
-
-// Mock Veri
-const MOCK_GROUP = {
-  name: 'Ev 3A',
-  createdAt: 'Ocak 2026',
-  memberCount: 4,
-};
-
-const MOCK_MEMBERS = [
-  { id: '1', name: 'Seyit Osman (Sen)', initials: 'SE', role: 'Admin' },
-  { id: '2', name: 'Ahmet Yılmaz', initials: 'AH', role: 'Admin' },
-  { id: '3', name: 'Mehmet Demir', initials: 'ME', role: 'Üye' },
-  { id: '4', name: 'Ayşe Kaya', initials: 'AY', role: 'Üye' },
-];
+import { confirmAsync } from '../../../utils/confirm';
+import { ApiError } from '../../../services/api';
+import { getCurrentUser } from '../../../services/auth';
+import {
+  createGroup,
+  getGroup,
+  getMyGroups,
+  joinGroup,
+  removeMember,
+  updateMemberRole,
+  type GroupDetail,
+  type GroupMember,
+} from '../../../services/groups';
 
 export default function GroupScreen() {
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [group, setGroup] = useState<GroupDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [memberOptionsVisible, setMemberOptionsVisible] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
 
-  const handleLeaveGroup = () => {
-    Alert.alert(
-      "Gruptan Ayrıl",
-      "Bu gruptan ayrılmak istediğinize emin misiniz?",
-      [
-        { text: "İptal", style: "cancel" },
-        { text: "Ayrıl", style: "destructive", onPress: () => router.replace('/profile') }
-      ]
-    );
+  const [groupName, setGroupName] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+
+  const loadData = async () => {
+    setIsLoading(true);
+    const [user, myGroups] = await Promise.all([getCurrentUser(), getMyGroups()]);
+    setCurrentUserId(user?.id ?? null);
+    if (myGroups.length > 0) {
+      const detail = await getGroup(myGroups[0].id);
+      setGroup(detail);
+    } else {
+      setGroup(null);
+    }
+    setIsLoading(false);
   };
 
-  const handleMemberAction = (member: any) => {
-    if (member.name.includes('(Sen)')) return; // Kendisine işlem yapamaz
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleCreateGroup = async () => {
+    setErrorMessage(undefined);
+    setIsSubmitting(true);
+    try {
+      await createGroup(groupName);
+      setCreateModalVisible(false);
+      setGroupName('');
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleJoinGroup = async () => {
+    setErrorMessage(undefined);
+    setIsSubmitting(true);
+    try {
+      await joinGroup(joinCode);
+      setJoinModalVisible(false);
+      setJoinCode('');
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleShareInvite = () => {
+    if (!group) return;
+    Share.share({ message: `Copay grubuma katıl: ${group.inviteCode}` }).catch(() => {});
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!group || !currentUserId) return;
+    const confirmed = await confirmAsync(
+      'Gruptan Ayrıl',
+      'Bu gruptan ayrılmak istediğinize emin misiniz?',
+      'Ayrıl'
+    );
+    if (!confirmed) return;
+
+    await removeMember(group.id, currentUserId);
+    router.replace('/profile');
+  };
+
+  const handleMemberAction = (member: GroupMember) => {
+    if (member.userId === currentUserId) return;
     setSelectedMember(member);
     setMemberOptionsVisible(true);
   };
 
-  const removeMember = () => {
+  const handleToggleRole = async () => {
+    if (!group || !selectedMember) return;
+    const nextRole = selectedMember.role === 'admin' ? 'member' : 'admin';
     setMemberOptionsVisible(false);
-    Alert.alert(
-      "Üyeyi Çıkar",
-      `${selectedMember?.name} adlı kullanıcıyı gruptan çıkarmak istediğinize emin misiniz?`,
-      [
-        { text: "İptal", style: "cancel" },
-        { text: "Çıkar", style: "destructive", onPress: () => {} }
-      ]
-    );
+    await updateMemberRole(group.id, selectedMember.userId, nextRole);
+    await loadData();
   };
+
+  const handleRemoveMember = async () => {
+    if (!group || !selectedMember) return;
+    setMemberOptionsVisible(false);
+    const confirmed = await confirmAsync(
+      'Üyeyi Çıkar',
+      `${selectedMember.name} adlı kullanıcıyı gruptan çıkarmak istediğinize emin misiniz?`,
+      'Çıkar'
+    );
+    if (!confirmed) return;
+
+    await removeMember(group.id, selectedMember.userId);
+    await loadData();
+  };
+
+  const myRole = group?.members.find((m) => m.userId === currentUserId)?.role;
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/profile')}>
@@ -65,109 +145,157 @@ export default function GroupScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
-        {/* GRUP BİLGİLERİ KARTI */}
-        <Card style={styles.groupCard}>
-          <View style={styles.groupIconWrapper}>
-            <Ionicons name="home" size={40} color={colors.primary} />
-          </View>
-          <Text variant="h1">{MOCK_GROUP.name}</Text>
-          <Text variant="body" color={colors.text.secondary}>
-            {MOCK_GROUP.memberCount} Üye • {MOCK_GROUP.createdAt}'den beri
+      {isLoading ? (
+        <Loading />
+      ) : !group ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="people-outline" size={64} color={colors.text.secondary} />
+          <Text variant="h2" align="center" style={styles.emptyTitle}>Henüz bir grubun yok</Text>
+          <Text variant="body" color={colors.text.secondary} align="center" style={styles.emptyDescription}>
+            Yeni bir grup oluşturabilir veya bir davet koduyla mevcut bir gruba katılabilirsin.
           </Text>
-        </Card>
-
-        {/* DAVET ET BUTONLARI */}
-        <View style={styles.inviteSection}>
-          <Button 
-            title="Yeni Üye Davet Et" 
-            onPress={() => setInviteModalVisible(true)} 
-            style={styles.inviteBtn}
-          />
+          <Button title="Grup Oluştur" onPress={() => setCreateModalVisible(true)} style={styles.emptyBtn} />
+          <Button title="Kod ile Katıl" variant="outline" onPress={() => setJoinModalVisible(true)} style={styles.emptyBtn} />
         </View>
+      ) : (
+        <>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-        {/* ÜYELER LİSTESİ */}
-        <View style={styles.membersHeader}>
-          <Text variant="h2">Üyeler</Text>
-        </View>
+            {/* GRUP BİLGİLERİ KARTI */}
+            <Card style={styles.groupCard}>
+              <View style={styles.groupIconWrapper}>
+                <Ionicons name="home" size={40} color={colors.primary} />
+              </View>
+              <Text variant="h1">{group.name}</Text>
+              <Text variant="body" color={colors.text.secondary}>
+                {group.members.length} Üye
+              </Text>
+            </Card>
 
-        <Card noPadding style={styles.membersCard}>
-          {MOCK_MEMBERS.map((member, index) => (
-            <React.Fragment key={member.id}>
-              <TouchableOpacity 
-                style={styles.memberRow} 
-                onPress={() => handleMemberAction(member)}
-                activeOpacity={member.name.includes('(Sen)') ? 1 : 0.7}
-              >
-                <Avatar initials={member.initials} size={44} />
-                <View style={styles.memberInfo}>
-                  <Text variant="body" weight="semibold">{member.name}</Text>
-                </View>
-                
-                <Badge 
-                  label={member.role} 
-                  variant={member.role === 'Admin' ? 'primary' : 'default'} 
-                />
-                
-                {!member.name.includes('(Sen)') && (
-                  <Ionicons name="ellipsis-vertical" size={20} color={colors.text.secondary} style={{ marginLeft: spacing.sm }} />
-                )}
+            {/* DAVET ET BUTONLARI */}
+            <View style={styles.inviteSection}>
+              <Button
+                title="Yeni Üye Davet Et"
+                onPress={() => setInviteModalVisible(true)}
+                style={styles.inviteBtn}
+              />
+            </View>
+
+            {/* ÜYELER LİSTESİ */}
+            <View style={styles.membersHeader}>
+              <Text variant="h2">Üyeler</Text>
+            </View>
+
+            <Card noPadding style={styles.membersCard}>
+              {group.members.map((member, index) => {
+                const isSelf = member.userId === currentUserId;
+                const initials = member.name
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((part) => part.charAt(0))
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase();
+
+                return (
+                  <React.Fragment key={member.userId}>
+                    <TouchableOpacity
+                      style={styles.memberRow}
+                      onPress={() => handleMemberAction(member)}
+                      activeOpacity={isSelf ? 1 : 0.7}
+                    >
+                      <Avatar initials={initials} size={44} />
+                      <View style={styles.memberInfo}>
+                        <Text variant="body" weight="semibold">
+                          {member.name}{isSelf ? ' (Sen)' : ''}
+                        </Text>
+                      </View>
+
+                      <Badge
+                        label={member.role === 'admin' ? 'Admin' : 'Üye'}
+                        variant={member.role === 'admin' ? 'primary' : 'default'}
+                      />
+
+                      {!isSelf && (
+                        <Ionicons name="ellipsis-vertical" size={20} color={colors.text.secondary} style={{ marginLeft: spacing.sm }} />
+                      )}
+                    </TouchableOpacity>
+                    {index < group.members.length - 1 && <Divider />}
+                  </React.Fragment>
+                );
+              })}
+            </Card>
+
+            <View style={{ height: 100 }} />
+          </ScrollView>
+
+          {/* ALT BUTON: GRUPTAN AYRIL */}
+          <View style={styles.bottomBar}>
+            <Button title="Gruptan Ayrıl" variant="danger" onPress={handleLeaveGroup} />
+          </View>
+
+          {/* DAVET MODALI */}
+          <Modal visible={inviteModalVisible} title="Davet Et" onClose={() => setInviteModalVisible(false)}>
+            <View style={styles.modalContent}>
+              <Text variant="caption" color={colors.text.secondary}>Davet Kodu</Text>
+              <Text variant="h1" color={colors.primary} style={styles.inviteCode}>{group.inviteCode}</Text>
+              <Text variant="caption" color={colors.text.secondary} style={{ marginBottom: spacing.md }}>
+                Bu kodu paylaştığın kişiler "Kod ile Katıl" diyerek gruba katılabilir.
+              </Text>
+              <Button title="Kodu Paylaş" onPress={handleShareInvite} />
+            </View>
+          </Modal>
+
+          {/* ÜYE İŞLEM MODALI */}
+          <Modal
+            visible={memberOptionsVisible}
+            title={selectedMember?.name}
+            onClose={() => setMemberOptionsVisible(false)}
+          >
+            <View style={styles.modalContent}>
+              {myRole === 'admin' && (
+                <TouchableOpacity style={styles.modalOption} onPress={handleToggleRole}>
+                  <Ionicons name="shield-outline" size={24} color={colors.text.primary} />
+                  <Text variant="body" weight="medium" style={styles.modalOptionText}>
+                    {selectedMember?.role === 'admin' ? 'Adminliği Kaldır' : 'Admin Yap'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.modalOption} onPress={handleRemoveMember}>
+                <Ionicons name="person-remove-outline" size={24} color={colors.danger} />
+                <Text variant="body" weight="medium" color={colors.danger} style={styles.modalOptionText}>Gruptan Çıkar</Text>
               </TouchableOpacity>
-              {index < MOCK_MEMBERS.length - 1 && <Divider />}
-            </React.Fragment>
-          ))}
-        </Card>
-        
-        <View style={{ height: 100 }} />
-      </ScrollView>
+            </View>
+          </Modal>
+        </>
+      )}
 
-      {/* ALT BUTON: GRUPTAN AYRIL */}
-      <View style={styles.bottomBar}>
-        <Button 
-          title="Gruptan Ayrıl" 
-          variant="danger" 
-          onPress={handleLeaveGroup} 
-        />
-      </View>
-
-      {/* DAVET MODALI */}
-      <Modal 
-        visible={inviteModalVisible} 
-        title="Davet Et"
-        onClose={() => setInviteModalVisible(false)}
-      >
+      {/* GRUP OLUŞTUR MODALI */}
+      <Modal visible={createModalVisible} title="Grup Oluştur" onClose={() => setCreateModalVisible(false)}>
         <View style={styles.modalContent}>
-          <TouchableOpacity style={styles.modalOption} onPress={() => {}}>
-            <Ionicons name="link-outline" size={24} color={colors.text.primary} />
-            <Text variant="body" weight="medium" style={styles.modalOptionText}>Davet Linki Paylaş</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.modalOption} onPress={() => {}}>
-            <Ionicons name="qr-code-outline" size={24} color={colors.text.primary} />
-            <Text variant="body" weight="medium" style={styles.modalOptionText}>QR Kod Göster</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.modalOption} onPress={() => {}}>
-            <Ionicons name="keypad-outline" size={24} color={colors.text.primary} />
-            <Text variant="body" weight="medium" style={styles.modalOptionText}>Davet Kodu Oluştur</Text>
-          </TouchableOpacity>
+          <Input
+            label="Grup Adı"
+            value={groupName}
+            onChangeText={setGroupName}
+            placeholder="Ev 3A"
+            error={errorMessage}
+          />
+          <Button title="Oluştur" onPress={handleCreateGroup} isLoading={isSubmitting} disabled={!groupName} />
         </View>
       </Modal>
 
-      {/* ÜYE İŞLEM MODALI */}
-      <Modal 
-        visible={memberOptionsVisible} 
-        title={selectedMember?.name}
-        onClose={() => setMemberOptionsVisible(false)}
-      >
+      {/* KOD İLE KATIL MODALI */}
+      <Modal visible={joinModalVisible} title="Kod ile Katıl" onClose={() => setJoinModalVisible(false)}>
         <View style={styles.modalContent}>
-          <TouchableOpacity style={styles.modalOption} onPress={() => {}}>
-            <Ionicons name="create-outline" size={24} color={colors.text.primary} />
-            <Text variant="body" weight="medium" style={styles.modalOptionText}>Rolü Düzenle</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.modalOption} onPress={removeMember}>
-            <Ionicons name="person-remove-outline" size={24} color={colors.danger} />
-            <Text variant="body" weight="medium" color={colors.danger} style={styles.modalOptionText}>Gruptan Çıkar</Text>
-          </TouchableOpacity>
+          <Input
+            label="Davet Kodu"
+            value={joinCode}
+            onChangeText={setJoinCode}
+            placeholder="ör. 62USRX"
+            autoCapitalize="characters"
+            error={errorMessage}
+          />
+          <Button title="Katıl" onPress={handleJoinGroup} isLoading={isSubmitting} disabled={!joinCode} />
         </View>
       </Modal>
 
@@ -192,6 +320,23 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.lg,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  emptyTitle: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  emptyDescription: {
+    marginBottom: spacing.xl,
+  },
+  emptyBtn: {
+    width: '100%',
+    marginBottom: spacing.sm,
   },
   groupCard: {
     alignItems: 'center',
@@ -251,5 +396,9 @@ const styles = StyleSheet.create({
   },
   modalOptionText: {
     marginLeft: spacing.md,
-  }
+  },
+  inviteCode: {
+    letterSpacing: 4,
+    marginBottom: spacing.sm,
+  },
 });
