@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Text, Input, Button, Avatar, Modal } from '../../../components';
-import { colors, spacing, radius } from '../../../theme';
+import { colors, spacing, radius, shadow } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from '../../../services/api';
 import { getCurrentUser, updateProfile } from '../../../services/auth';
@@ -99,7 +99,7 @@ export default function AccountScreen() {
           />
         </View>
         
-        <View style={{ height: 140 }} />
+        <View style={{ height: 110 }} />
       </ScrollView>
 
       {/* ALT BUTONLAR */}
@@ -180,14 +180,13 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.background,
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingBottom: spacing.xxl,
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    ...shadow.lg,
   },
   modalContent: {
     gap: spacing.sm,
