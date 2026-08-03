@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Text, Card, Avatar, Divider, Button } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { confirmAsync } from '../../../utils/confirm';
+import { logout } from '../../../services/auth';
 
 // Yardımcı Bileşen: Menü Satırı
 const MenuRow = ({ 
@@ -35,15 +37,17 @@ const MenuRow = ({
 );
 
 export default function ProfileIndexScreen() {
-  const handleLogout = () => {
-    Alert.alert(
+  const handleLogout = async () => {
+    const confirmed = await confirmAsync(
       "Çıkış Yap",
       "Hesabınızdan çıkış yapmak istediğinize emin misiniz?",
-      [
-        { text: "İptal", style: "cancel" },
-        { text: "Çıkış Yap", style: "destructive", onPress: () => router.replace("/login") }
-      ]
+      "Çıkış Yap"
     );
+    if (!confirmed) {
+      return;
+    }
+    await logout();
+    router.replace("/login");
   };
 
   return (
