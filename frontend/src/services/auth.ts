@@ -1,7 +1,5 @@
-import * as SecureStore from "expo-secure-store";
 import { apiFetch } from "./api";
-
-const TOKEN_KEY = "auth_token";
+import { getToken, setToken, deleteToken } from "./tokenStorage";
 
 export interface AuthUser {
   id: string;
@@ -23,7 +21,7 @@ export async function register(
     method: "POST",
     body: { name, email, password },
   });
-  await SecureStore.setItemAsync(TOKEN_KEY, result.token);
+  await setToken(result.token);
   return result;
 }
 
@@ -35,16 +33,14 @@ export async function login(
     method: "POST",
     body: { email, password },
   });
-  await SecureStore.setItemAsync(TOKEN_KEY, result.token);
+  await setToken(result.token);
   return result;
 }
 
-export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
-}
+export { getToken };
 
 export async function logout(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await deleteToken();
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
