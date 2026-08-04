@@ -56,8 +56,8 @@ async function authedFetch<T>(
   return apiFetch<T>(path, { ...options, token });
 }
 
-export function getMyDebts(): Promise<PersonDebt[]> {
-  return authedFetch("/debts/mine");
+export function getMyDebts(groupId?: string): Promise<PersonDebt[]> {
+  return authedFetch(groupId ? `/debts/mine?groupId=${groupId}` : "/debts/mine");
 }
 
 export function getPersonDebt(personId: string): Promise<PersonDebtDetail> {

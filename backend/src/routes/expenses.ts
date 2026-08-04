@@ -99,6 +99,12 @@ expensesRoute.post('/', zValidator('json', expenseInputSchema), async (c) => {
 
 expensesRoute.get('/mine', async (c) => {
   const payload = c.get('jwtPayload') as { sub: string }
+  const groupIdFilter = c.req.query('groupId')
+
+  const conditions = [eq(groupMembers.userId, payload.sub)]
+  if (groupIdFilter) {
+    conditions.push(eq(expenses.groupId, groupIdFilter))
+  }
 
   const rows = await db
     .select({
@@ -119,7 +125,7 @@ expensesRoute.get('/mine', async (c) => {
     .innerJoin(groupMembers, eq(groupMembers.groupId, expenses.groupId))
     .innerJoin(groups, eq(groups.id, expenses.groupId))
     .innerJoin(users, eq(users.id, expenses.payerId))
-    .where(eq(groupMembers.userId, payload.sub))
+    .where(and(...conditions))
     .orderBy(desc(expenses.date), desc(expenses.createdAt))
 
   return c.json(rows)
@@ -127,6 +133,12 @@ expensesRoute.get('/mine', async (c) => {
 
 expensesRoute.get('/analytics', async (c) => {
   const payload = c.get('jwtPayload') as { sub: string }
+  const groupIdFilter = c.req.query('groupId')
+
+  const conditions = [eq(groupMembers.userId, payload.sub)]
+  if (groupIdFilter) {
+    conditions.push(eq(expenses.groupId, groupIdFilter))
+  }
 
   const rows = await db
     .select({
@@ -139,7 +151,7 @@ expensesRoute.get('/analytics', async (c) => {
     .from(expenses)
     .innerJoin(groupMembers, eq(groupMembers.groupId, expenses.groupId))
     .innerJoin(users, eq(users.id, expenses.payerId))
-    .where(eq(groupMembers.userId, payload.sub))
+    .where(and(...conditions))
 
   const now = new Date()
   const monthPrefix = now.toISOString().slice(0, 7)

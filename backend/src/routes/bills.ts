@@ -127,6 +127,12 @@ billsRoute.post('/', zValidator('json', billInputSchema), async (c) => {
 
 billsRoute.get('/mine', async (c) => {
   const payload = c.get('jwtPayload') as { sub: string }
+  const groupIdFilter = c.req.query('groupId')
+
+  const conditions = [eq(groupMembers.userId, payload.sub)]
+  if (groupIdFilter) {
+    conditions.push(eq(bills.groupId, groupIdFilter))
+  }
 
   const rows = await db
     .select({
@@ -151,7 +157,7 @@ billsRoute.get('/mine', async (c) => {
     .innerJoin(groupMembers, eq(groupMembers.groupId, bills.groupId))
     .innerJoin(groups, eq(groups.id, bills.groupId))
     .innerJoin(users, eq(users.id, bills.payerId))
-    .where(eq(groupMembers.userId, payload.sub))
+    .where(and(...conditions))
     .orderBy(asc(bills.dueDate))
 
   return c.json(rows.map((r) => ({ ...r, status: computeStatus(r.dueDate, r.paidAt) })))

@@ -85,8 +85,8 @@ async function authedFetch<T>(
   return apiFetch<T>(path, { ...options, token });
 }
 
-export function getMyBills(): Promise<BillSummary[]> {
-  return authedFetch("/bills/mine");
+export function getMyBills(groupId?: string): Promise<BillSummary[]> {
+  return authedFetch(groupId ? `/bills/mine?groupId=${groupId}` : "/bills/mine");
 }
 
 export function getBillHistory(): Promise<BillSummary[]> {

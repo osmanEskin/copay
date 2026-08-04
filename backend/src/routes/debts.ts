@@ -39,7 +39,7 @@ interface LedgerEntry {
   lastDate: string
 }
 
-async function computeLedger(userId: string): Promise<Map<string, LedgerEntry>> {
+async function computeLedger(userId: string, groupIdFilter?: string): Promise<Map<string, LedgerEntry>> {
   const ledger = new Map<string, LedgerEntry>()
 
   function ensure(otherId: string): LedgerEntry {
@@ -57,7 +57,9 @@ async function computeLedger(userId: string): Promise<Map<string, LedgerEntry>> 
   }
 
   const myGroupRows = await db.select({ groupId: groupMembers.groupId }).from(groupMembers).where(eq(groupMembers.userId, userId))
-  const myGroupIds = myGroupRows.map((r) => r.groupId)
+  const myGroupIds = groupIdFilter
+    ? myGroupRows.map((r) => r.groupId).filter((id) => id === groupIdFilter)
+    : myGroupRows.map((r) => r.groupId)
 
   if (myGroupIds.length > 0) {
     const allExpenses = await db.select().from(expenses).where(inArray(expenses.groupId, myGroupIds))
@@ -186,7 +188,8 @@ function statusFor(net: number): 'owe_me' | 'i_owe' | 'settled' {
 
 debtsRoute.get('/mine', async (c) => {
   const payload = c.get('jwtPayload') as { sub: string }
-  const ledger = await computeLedger(payload.sub)
+  const groupIdFilter = c.req.query('groupId')
+  const ledger = await computeLedger(payload.sub, groupIdFilter)
   const otherIds = [...ledger.keys()]
   if (otherIds.length === 0) {
     return c.json([])

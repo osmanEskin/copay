@@ -4,16 +4,12 @@ import { router } from 'expo-router';
 import { Screen, Text, Card, Section, Divider, Loading } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { getExpenseAnalytics, iconForCategory, type ExpenseAnalytics } from '../../../services/expenses';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  Market: '#34C759',
-  Restoran: '#FF9500',
-  Abonelik: '#007AFF',
-  Ulaşım: '#5856D6',
-  Kafe: '#FF2D55',
-  Diğer: '#8E8E93',
-};
+import {
+  EXPENSE_CATEGORY_COLORS as CATEGORY_COLORS,
+  getExpenseAnalytics,
+  iconForCategory,
+  type ExpenseAnalytics,
+} from '../../../services/expenses';
 
 export default function ExpensesAnalyticsScreen() {
   const [analytics, setAnalytics] = useState<ExpenseAnalytics | null>(null);

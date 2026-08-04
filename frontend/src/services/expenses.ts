@@ -6,6 +6,15 @@ export type { SplitMethod };
 
 export const EXPENSE_CATEGORIES = ["Market", "Restoran", "Abonelik", "Ulaşım", "Kafe", "Diğer"];
 
+export const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
+  Market: '#34C759',
+  Restoran: '#FF9500',
+  Abonelik: '#007AFF',
+  Ulaşım: '#5856D6',
+  Kafe: '#FF2D55',
+  Diğer: '#8E8E93',
+};
+
 export interface ExpenseParticipantInput {
   userId: string;
   shareAmount: number;
@@ -95,8 +104,8 @@ async function authedFetch<T>(
   return apiFetch<T>(path, { ...options, token });
 }
 
-export function getMyExpenses(): Promise<ExpenseSummary[]> {
-  return authedFetch("/expenses/mine");
+export function getMyExpenses(groupId?: string): Promise<ExpenseSummary[]> {
+  return authedFetch(groupId ? `/expenses/mine?groupId=${groupId}` : "/expenses/mine");
 }
 
 export function getExpense(expenseId: string): Promise<ExpenseDetail> {
@@ -115,8 +124,8 @@ export function deleteExpense(expenseId: string): Promise<{ success: true }> {
   return authedFetch(`/expenses/${expenseId}`, { method: "DELETE" });
 }
 
-export function getExpenseAnalytics(): Promise<ExpenseAnalytics> {
-  return authedFetch("/expenses/analytics");
+export function getExpenseAnalytics(groupId?: string): Promise<ExpenseAnalytics> {
+  return authedFetch(groupId ? `/expenses/analytics?groupId=${groupId}` : "/expenses/analytics");
 }
 
 export function iconForCategory(category: string): keyof typeof import("@expo/vector-icons").Ionicons.glyphMap {
