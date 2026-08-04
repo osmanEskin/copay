@@ -1,39 +1,36 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Card, Avatar, Section, Divider } from '../../../components';
+import { Screen, Text, Card, Section, Divider, Loading } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { getExpenseAnalytics, iconForCategory, type ExpenseAnalytics } from '../../../services/expenses';
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Market: '#34C759',
+  Restoran: '#FF9500',
+  Abonelik: '#007AFF',
+  Ulaşım: '#5856D6',
+  Kafe: '#FF2D55',
+  Diğer: '#8E8E93',
+};
 
 export default function ExpensesAnalyticsScreen() {
-  
-  // Mock veri
-  const monthlyTotal = 16450;
-  const topSpender = { name: 'Ahmet', amount: 8200, initials: 'AH' };
-  const topCategory = { name: 'Market', amount: 6500, percentage: 40, icon: 'cart' as const };
-  
-  const categories = [
-    { name: 'Market', amount: 6500, percentage: 40, color: '#34C759' },
-    { name: 'Restoran', amount: 4100, percentage: 25, color: '#FF9500' },
-    { name: 'Faturalar', amount: 3290, percentage: 20, color: '#007AFF' },
-    { name: 'Ulaşım', amount: 1645, percentage: 10, color: '#5856D6' },
-    { name: 'Diğer', amount: 915, percentage: 5, color: '#8E8E93' },
-  ];
+  const [analytics, setAnalytics] = useState<ExpenseAnalytics | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Günlük grafik için mock veri (7 günlük çubuklar)
-  const dailyChart = [
-    { day: 'Pzt', height: 30 },
-    { day: 'Sal', height: 50 },
-    { day: 'Çar', height: 20 },
-    { day: 'Per', height: 80 },
-    { day: 'Cum', height: 40 },
-    { day: 'Cmt', height: 100 },
-    { day: 'Paz', height: 60 },
-  ];
+  useEffect(() => {
+    getExpenseAnalytics().then((data) => {
+      setAnalytics(data);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const monthLabel = new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
@@ -43,70 +40,87 @@ export default function ExpensesAnalyticsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
-        {/* AYLIK TOPLAM & GRAFİK */}
-        <Card style={styles.mainCard}>
-          <Text variant="caption" color={colors.text.secondary}>Temmuz 2026 Toplam Harcama</Text>
-          <Text variant="h1" color={colors.primary} style={styles.totalAmount}>
-            ₺{monthlyTotal.toLocaleString('tr-TR')}
-          </Text>
+      {isLoading || !analytics ? (
+        <Loading />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-          {/* Basit Çubuk Grafik */}
-          <View style={styles.chartContainer}>
-            {dailyChart.map((item, index) => (
-              <View key={index} style={styles.chartBarWrapper}>
-                <View style={[styles.chartBar, { height: `${item.height}%` }]} />
-                <Text variant="caption" style={styles.chartLabel}>{item.day}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
+          {/* AYLIK TOPLAM & GRAFİK */}
+          <Card style={styles.mainCard}>
+            <Text variant="caption" color={colors.text.secondary}>{monthLabel} Toplam Harcama</Text>
+            <Text variant="h1" color={colors.primary} style={styles.totalAmount}>
+              ₺{analytics.monthlyTotal.toLocaleString('tr-TR')}
+            </Text>
 
-        {/* ÖNE ÇIKANLAR */}
-        <View style={styles.highlightsContainer}>
-          <Card style={styles.highlightCard}>
-            <View style={[styles.highlightIcon, { backgroundColor: colors.primary + '15' }]}>
-              <Ionicons name="trophy-outline" size={20} color={colors.primary} />
-            </View>
-            <Text variant="caption" color={colors.text.secondary}>En Çok Harcayan</Text>
-            <Text variant="body" weight="bold" numberOfLines={1}>{topSpender.name}</Text>
-            <Text variant="caption" color={colors.text.primary}>₺{topSpender.amount.toLocaleString()}</Text>
-          </Card>
-          
-          <Card style={styles.highlightCard}>
-            <View style={[styles.highlightIcon, { backgroundColor: '#FF950015' }]}>
-              <Ionicons name={topCategory.icon} size={20} color="#FF9500" />
-            </View>
-            <Text variant="caption" color={colors.text.secondary}>En Çok Harcanan</Text>
-            <Text variant="body" weight="bold" numberOfLines={1}>{topCategory.name}</Text>
-            <Text variant="caption" color={colors.text.primary}>₺{topCategory.amount.toLocaleString()}</Text>
-          </Card>
-        </View>
-
-        {/* KATEGORİ DAĞILIMI */}
-        <Section title="Kategori Dağılımı">
-          <Card noPadding style={styles.categoryCard}>
-            {categories.map((cat, index) => (
-              <React.Fragment key={cat.name}>
-                <View style={styles.categoryRow}>
-                  <View style={[styles.colorDot, { backgroundColor: cat.color }]} />
-                  <Text variant="body" style={styles.categoryName}>{cat.name}</Text>
-                  <View style={styles.progressContainer}>
-                    <View style={[styles.progressBar, { width: `${cat.percentage}%`, backgroundColor: cat.color }]} />
-                  </View>
-                  <View style={styles.categoryRight}>
-                    <Text variant="body" weight="bold">₺{cat.amount.toLocaleString()}</Text>
-                    <Text variant="caption" color={colors.text.secondary}>%{cat.percentage}</Text>
-                  </View>
+            <View style={styles.chartContainer}>
+              {analytics.dailyChart.map((item, index) => (
+                <View key={index} style={styles.chartBarWrapper}>
+                  <View style={[styles.chartBar, { height: `${Math.max(item.height, 2)}%` }]} />
+                  <Text variant="caption" style={styles.chartLabel}>{item.day}</Text>
                 </View>
-                {index < categories.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
+              ))}
+            </View>
           </Card>
-        </Section>
 
-      </ScrollView>
+          {analytics.monthlyTotal === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text variant="body" color={colors.text.secondary} align="center">
+                Bu ay için henüz bir harcama kaydedilmedi.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* ÖNE ÇIKANLAR */}
+              <View style={styles.highlightsContainer}>
+                <Card style={styles.highlightCard}>
+                  <View style={[styles.highlightIcon, { backgroundColor: colors.primary + '15' }]}>
+                    <Ionicons name="trophy-outline" size={20} color={colors.primary} />
+                  </View>
+                  <Text variant="caption" color={colors.text.secondary}>En Çok Harcayan</Text>
+                  <Text variant="body" weight="bold" numberOfLines={1}>{analytics.topSpender?.name ?? '-'}</Text>
+                  <Text variant="caption" color={colors.text.primary}>
+                    ₺{(analytics.topSpender?.amount ?? 0).toLocaleString('tr-TR')}
+                  </Text>
+                </Card>
+
+                <Card style={styles.highlightCard}>
+                  <View style={[styles.highlightIcon, { backgroundColor: '#FF950015' }]}>
+                    <Ionicons name={analytics.topCategory ? iconForCategory(analytics.topCategory.name) : 'pricetag'} size={20} color="#FF9500" />
+                  </View>
+                  <Text variant="caption" color={colors.text.secondary}>En Çok Harcanan</Text>
+                  <Text variant="body" weight="bold" numberOfLines={1}>{analytics.topCategory?.name ?? '-'}</Text>
+                  <Text variant="caption" color={colors.text.primary}>
+                    ₺{(analytics.topCategory?.amount ?? 0).toLocaleString('tr-TR')}
+                  </Text>
+                </Card>
+              </View>
+
+              {/* KATEGORİ DAĞILIMI */}
+              <Section title="Kategori Dağılımı">
+                <Card noPadding style={styles.categoryCard}>
+                  {analytics.categories.map((cat, index) => (
+                    <React.Fragment key={cat.name}>
+                      <View style={styles.categoryRow}>
+                        <View style={[styles.colorDot, { backgroundColor: CATEGORY_COLORS[cat.name] ?? colors.text.secondary }]} />
+                        <Text variant="body" style={styles.categoryName}>{cat.name}</Text>
+                        <View style={styles.progressContainer}>
+                          <View style={[styles.progressBar, { width: `${cat.percentage}%`, backgroundColor: CATEGORY_COLORS[cat.name] ?? colors.text.secondary }]} />
+                        </View>
+                        <View style={styles.categoryRight}>
+                          <Text variant="body" weight="bold">₺{cat.amount.toLocaleString('tr-TR')}</Text>
+                          <Text variant="caption" color={colors.text.secondary}>%{cat.percentage}</Text>
+                        </View>
+                      </View>
+                      {index < analytics.categories.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </Card>
+              </Section>
+            </>
+          )}
+
+        </ScrollView>
+      )}
     </Screen>
   );
 }
@@ -163,6 +177,10 @@ const styles = StyleSheet.create({
   chartLabel: {
     fontSize: 10,
     color: colors.text.secondary,
+  },
+  emptyContainer: {
+    padding: spacing.xl,
+    alignItems: 'center',
   },
   highlightsContainer: {
     flexDirection: 'row',

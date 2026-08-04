@@ -20,3 +20,4 @@ export * from './CurrencyInput';
 export * from './ExpenseCard';
 export * from './BillCard';
 export * from './PersonDebtCard';
+export * from './ExpenseForm';

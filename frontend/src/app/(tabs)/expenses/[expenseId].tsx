@@ -1,43 +1,94 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Screen, Text, Card, Button, Avatar, Divider, Section } from '../../../components';
-import { colors, spacing, radius } from '../../../theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { Screen, Text, Card, Button, Avatar, Divider, Section, Loading } from '../../../components';
+import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { confirmAsync } from '../../../utils/confirm';
+import { getCurrentUser } from '../../../services/auth';
+import { deleteExpense, getExpense, iconForCategory, type ExpenseDetail } from '../../../services/expenses';
+
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+const SPLIT_METHOD_LABELS: Record<string, string> = {
+  equal: 'Eşit',
+  percentage: 'Yüzdelik',
+  amount: 'Tutar',
+};
 
 export default function ExpenseDetailScreen() {
-  const { expenseId } = useLocalSearchParams();
+  const { expenseId } = useLocalSearchParams<{ expenseId: string }>();
+  const [expense, setExpense] = useState<ExpenseDetail | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | undefined>();
 
-  // Mock Data
-  const expense = {
-    title: 'Migros',
-    amount: 1250,
-    date: '12 Temmuz 2026',
-    category: 'Market',
-    description: 'Haftalık mutfak alışverişi.',
-    payer: { name: 'Sen', initials: 'SE' },
-    participants: [
-      { name: 'Sen', amount: 312.5 },
-      { name: 'Ahmet', amount: 312.5 },
-      { name: 'Mehmet', amount: 312.5 },
-      { name: 'Ayşe', amount: 312.5 },
-    ]
-  };
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setIsLoading(true);
+      setLoadError(undefined);
+      Promise.all([getCurrentUser(), getExpense(expenseId)])
+        .then(([user, detail]) => {
+          if (!active) return;
+          setCurrentUserId(user?.id ?? null);
+          setExpense(detail);
+        })
+        .catch(() => {
+          if (active) setLoadError('Harcama yüklenemedi.');
+        })
+        .finally(() => {
+          if (active) setIsLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [expenseId])
+  );
 
-  const handleDelete = () => {
-    Alert.alert(
-      "Harcamayı Sil",
-      "Bu harcamayı silmek istediğinize emin misiniz?",
-      [
-        { text: "İptal", style: "cancel" },
-        { text: "Sil", style: "destructive", onPress: () => router.back() }
-      ]
+  const handleDelete = async () => {
+    const confirmed = await confirmAsync(
+      'Harcamayı Sil',
+      'Bu harcamayı silmek istediğinize emin misiniz?',
+      'Sil'
     );
+    if (!confirmed) return;
+
+    await deleteExpense(expenseId);
+    router.back();
   };
+
+  if (isLoading) {
+    return (
+      <Screen safeArea backgroundColor={colors.background}>
+        <Loading />
+      </Screen>
+    );
+  }
+
+  if (loadError || !expense) {
+    return (
+      <Screen safeArea backgroundColor={colors.background}>
+        <View style={styles.emptyContainer}>
+          <Text variant="body" color={colors.danger} align="center">{loadError ?? 'Harcama bulunamadı.'}</Text>
+          <Button title="Geri Dön" onPress={() => router.back()} style={{ marginTop: spacing.md }} />
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
@@ -45,7 +96,7 @@ export default function ExpenseDetailScreen() {
         </TouchableOpacity>
         <Text variant="h2" color={colors.text.primary}>Harcama Detayı</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => {}}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => router.push(`/expenses/${expenseId}/edit`)}>
             <Ionicons name="create-outline" size={24} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={handleDelete}>
@@ -55,20 +106,22 @@ export default function ExpenseDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
+
         {/* ANA KART */}
         <Card style={styles.mainCard}>
           <View style={styles.iconCircle}>
-            <Ionicons name="cart" size={32} color={colors.primary} />
+            <Ionicons name={iconForCategory(expense.category)} size={32} color={colors.primary} />
           </View>
           <Text variant="h1" align="center" style={styles.title}>{expense.title}</Text>
           <Text variant="h1" color={colors.primary} align="center" style={styles.amount}>
             ₺{expense.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
           </Text>
-          
+
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={16} color={colors.text.secondary} />
-            <Text variant="caption" color={colors.text.secondary} style={styles.infoText}>{expense.date}</Text>
+            <Text variant="caption" color={colors.text.secondary} style={styles.infoText}>
+              {new Date(expense.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </Text>
             <Text variant="caption" color={colors.text.secondary}> • </Text>
             <Ionicons name="pricetag-outline" size={16} color={colors.text.secondary} />
             <Text variant="caption" color={colors.text.secondary} style={styles.infoText}>{expense.category}</Text>
@@ -86,9 +139,11 @@ export default function ExpenseDetailScreen() {
         {/* ÖDEYEN */}
         <Section title="Kim Ödedi?">
           <Card style={styles.payerCard}>
-            <Avatar initials={expense.payer.initials} size={40} />
+            <Avatar initials={initialsOf(expense.payerName)} size={40} />
             <View style={styles.payerInfo}>
-              <Text variant="body" weight="semibold">{expense.payer.name}</Text>
+              <Text variant="body" weight="semibold">
+                {expense.payerId === currentUserId ? 'Sen' : expense.payerName}
+              </Text>
               <Text variant="caption" color={colors.text.secondary}>Tüm tutarı ödedi</Text>
             </View>
             <Text variant="body" weight="bold" color={colors.primary}>
@@ -98,15 +153,17 @@ export default function ExpenseDetailScreen() {
         </Section>
 
         {/* KATILIMCILAR */}
-        <Section title="Nasıl Bölüşüldü? (Eşit)">
+        <Section title={`Nasıl Bölüşüldü? (${SPLIT_METHOD_LABELS[expense.splitMethod] ?? expense.splitMethod})`}>
           <Card noPadding style={styles.participantsCard}>
             {expense.participants.map((p, index) => (
-              <React.Fragment key={p.name}>
+              <React.Fragment key={p.userId}>
                 <View style={styles.participantRow}>
-                  <Avatar initials={p.name.substring(0, 2).toUpperCase()} size={36} />
-                  <Text variant="body" style={styles.participantName}>{p.name}</Text>
+                  <Avatar initials={initialsOf(p.name)} size={36} />
+                  <Text variant="body" style={styles.participantName}>
+                    {p.userId === currentUserId ? 'Sen' : p.name}
+                  </Text>
                   <Text variant="body" weight="semibold">
-                    ₺{p.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    ₺{p.shareAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
                 {index < expense.participants.length - 1 && <Divider />}
@@ -138,6 +195,12 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
   },
   mainCard: {
     alignItems: 'center',
