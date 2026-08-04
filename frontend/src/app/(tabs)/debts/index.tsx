@@ -1,29 +1,50 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Card, Chip, PersonDebtCard } from '../../../components';
+import { useFocusEffect } from '@react-navigation/native';
+import { Screen, Text, Card, Chip, PersonDebtCard, Loading } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { DebtType } from '../../../components/PersonDebtCard';
+import { getMyDebts, type PersonDebt } from '../../../services/debts';
 
-const MOCK_DEBTS = [
-  { id: '1', name: 'Ahmet', initials: 'AH', type: 'owe_me' as DebtType, amount: 540, openTxCount: 3, lastTxDate: '18 Tem' },
-  { id: '2', name: 'Mehmet', initials: 'ME', type: 'i_owe' as DebtType, amount: 320, openTxCount: 2, lastTxDate: '12 Tem' },
-  { id: '3', name: 'Ayşe', initials: 'AY', type: 'owe_me' as DebtType, amount: 150, openTxCount: 1, lastTxDate: '10 Tem' },
-];
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+function formatLastDate(iso: string | null): string | undefined {
+  if (!iso) return undefined;
+  return new Date(iso).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
+}
 
 export default function DebtsIndexScreen() {
   const [activeFilter, setActiveFilter] = useState('Tümü');
+  const [debts, setDebts] = useState<PersonDebt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const filters = ['Tümü', 'Alacaklarım', 'Borçlarım'];
 
-  // Calculate Net Total
-  const totalOweMe = MOCK_DEBTS.filter(d => d.type === 'owe_me').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalIOwe = MOCK_DEBTS.filter(d => d.type === 'i_owe').reduce((acc, curr) => acc + curr.amount, 0);
-  
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      getMyDebts().then((list) => {
+        setDebts(list);
+        setIsLoading(false);
+      });
+    }, [])
+  );
+
+  const totalOweMe = debts.filter(d => d.type === 'owe_me').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalIOwe = debts.filter(d => d.type === 'i_owe').reduce((acc, curr) => acc + curr.amount, 0);
+
   const netBalance = totalOweMe - totalIOwe;
 
-  const filteredDebts = MOCK_DEBTS.filter(debt => {
+  const filteredDebts = debts.filter(debt => {
     if (activeFilter === 'Alacaklarım') return debt.type === 'owe_me';
     if (activeFilter === 'Borçlarım') return debt.type === 'i_owe';
     return true;
@@ -31,13 +52,13 @@ export default function DebtsIndexScreen() {
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER & TOP NAVIGATION */}
       <View style={styles.header}>
         <Text variant="h1" color={colors.text.primary}>Borçlar</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.iconButton} 
+          <TouchableOpacity
+            style={styles.iconButton}
             onPress={() => router.push('/debts/history')}
           >
             <Ionicons name="time-outline" size={24} color={colors.primary} />
@@ -45,77 +66,81 @@ export default function DebtsIndexScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
-        {/* TOPLAM DURUM KARTI */}
-        <Card style={[
-          styles.statusCard, 
-          { backgroundColor: netBalance > 0 ? colors.success + '15' : netBalance < 0 ? colors.danger + '15' : colors.surface }
-        ]}>
-          <View style={styles.statusInner}>
-            <View style={styles.statusIconBox}>
-              <Ionicons 
-                name={netBalance > 0 ? 'arrow-down-outline' : netBalance < 0 ? 'arrow-up-outline' : 'checkmark-done-outline'} 
-                size={32} 
-                color={netBalance > 0 ? colors.success : netBalance < 0 ? colors.danger : colors.text.secondary} 
-              />
-            </View>
-            <View style={styles.statusTextContainer}>
-              <Text variant="caption" weight="semibold" color={colors.text.secondary} style={styles.statusLabel}>
-                {netBalance > 0 ? 'TOPLAM ALACAĞIN' : netBalance < 0 ? 'TOPLAM BORCUN' : 'NET DURUM'}
-              </Text>
-              {netBalance === 0 ? (
-                <Text variant="h2" color={colors.text.primary}>Hesaplar Dengede</Text>
-              ) : (
-                <Text variant="h1" color={netBalance > 0 ? colors.success : colors.danger} style={{ fontSize: 32 }}>
-                  ₺{Math.abs(netBalance).toLocaleString('tr-TR')}
+      {isLoading ? (
+        <Loading />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+
+          {/* TOPLAM DURUM KARTI */}
+          <Card style={[
+            styles.statusCard,
+            { backgroundColor: netBalance > 0 ? colors.success + '15' : netBalance < 0 ? colors.danger + '15' : colors.surface }
+          ]}>
+            <View style={styles.statusInner}>
+              <View style={styles.statusIconBox}>
+                <Ionicons
+                  name={netBalance > 0 ? 'arrow-down-outline' : netBalance < 0 ? 'arrow-up-outline' : 'checkmark-done-outline'}
+                  size={32}
+                  color={netBalance > 0 ? colors.success : netBalance < 0 ? colors.danger : colors.text.secondary}
+                />
+              </View>
+              <View style={styles.statusTextContainer}>
+                <Text variant="caption" weight="semibold" color={colors.text.secondary} style={styles.statusLabel}>
+                  {netBalance > 0 ? 'TOPLAM ALACAĞIN' : netBalance < 0 ? 'TOPLAM BORCUN' : 'NET DURUM'}
                 </Text>
-              )}
+                {netBalance === 0 ? (
+                  <Text variant="h2" color={colors.text.primary}>Hesaplar Dengede</Text>
+                ) : (
+                  <Text variant="h1" color={netBalance > 0 ? colors.success : colors.danger} style={{ fontSize: 32 }}>
+                    ₺{Math.abs(netBalance).toLocaleString('tr-TR')}
+                  </Text>
+                )}
+              </View>
             </View>
+          </Card>
+
+          {/* FİLTRELER */}
+          <View style={styles.chipsContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
+              {filters.map(f => (
+                <Chip
+                  key={f}
+                  label={f}
+                  active={activeFilter === f}
+                  onPress={() => setActiveFilter(f)}
+                />
+              ))}
+            </ScrollView>
           </View>
-        </Card>
 
-        {/* FİLTRELER */}
-        <View style={styles.chipsContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
-            {filters.map(f => (
-              <Chip 
-                key={f} 
-                label={f} 
-                active={activeFilter === f} 
-                onPress={() => setActiveFilter(f)} 
-              />
-            ))}
-          </ScrollView>
-        </View>
+          {/* KİŞİ KARTLARI (BORÇ LİSTESİ) */}
+          <View style={styles.listContainer}>
+            {filteredDebts.length > 0 ? (
+              filteredDebts.map((debt) => (
+                <PersonDebtCard
+                  key={debt.personId}
+                  personName={debt.personName}
+                  initials={initialsOf(debt.personName)}
+                  amount={debt.amount}
+                  openTxCount={debt.openTxCount}
+                  type={debt.type}
+                  lastTxDate={formatLastDate(debt.lastDate)}
+                  onPress={() => router.push(`/debts/${debt.personId}`)}
+                  onSettlePress={() => router.push(`/debts/${debt.personId}/settle`)}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text variant="body" color={colors.text.secondary} align="center">
+                  Bu filtreye uygun borç kaydı bulunamadı.
+                </Text>
+              </View>
+            )}
+          </View>
 
-        {/* KİŞİ KARTLARI (BORÇ LİSTESİ) */}
-        <View style={styles.listContainer}>
-          {filteredDebts.length > 0 ? (
-            filteredDebts.map((debt) => (
-              <PersonDebtCard
-                key={debt.id}
-                personName={debt.name}
-                initials={debt.initials}
-                amount={debt.amount}
-                openTxCount={debt.openTxCount}
-                type={debt.type}
-                lastTxDate={debt.lastTxDate}
-                onPress={() => router.push(`/debts/${debt.id}`)}
-                onSettlePress={() => router.push(`/debts/${debt.id}/settle`)}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Text variant="body" color={colors.text.secondary} align="center">
-                Bu filtreye uygun borç kaydı bulunamadı.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      )}
 
     </Screen>
   );
@@ -178,7 +203,7 @@ const styles = StyleSheet.create({
   },
   chipsContainer: {
     marginBottom: spacing.md,
-    marginHorizontal: -spacing.lg, // Tam ekrana yayılması için
+    marginHorizontal: -spacing.lg,
   },
   chipsContent: {
     paddingHorizontal: spacing.lg,

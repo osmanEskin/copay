@@ -1,29 +1,54 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Card, Chip, Divider, Avatar } from '../../../components';
-import { colors, spacing, radius } from '../../../theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { Screen, Text, Card, Chip, Divider, Avatar, Loading } from '../../../components';
+import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { getDebtHistory, type SettlementRecord } from '../../../services/debts';
 
-const MOCK_SETTLEMENTS = [
-  { id: '1', person: 'Mehmet', initials: 'ME', date: '22 Tem', amount: 420, type: 'paid', desc: 'ödendi' },
-  { id: '2', person: 'Ahmet', initials: 'AH', date: '18 Tem', amount: 150, type: 'received', desc: 'alındı' },
-  { id: '3', person: 'Ayşe', initials: 'AY', date: '10 Haz', amount: 200, type: 'paid', desc: 'ödendi' },
-];
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+function monthLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+}
 
 export default function DebtHistoryScreen() {
-  const [activeFilter, setActiveFilter] = useState('Bu Ay');
-  const filters = ['Bu Ay', 'Geçen Ay', 'Bu Yıl'];
+  const [history, setHistory] = useState<SettlementRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('Tümü');
 
-  const filteredHistory = MOCK_SETTLEMENTS.filter(tx => {
-    if (activeFilter === 'Bu Ay') return tx.date.includes('Tem');
-    if (activeFilter === 'Geçen Ay') return tx.date.includes('Haz');
-    return true; // Bu Yıl için hepsi gelsin (Mock)
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      getDebtHistory().then((list) => {
+        setHistory(list);
+        setIsLoading(false);
+      });
+    }, [])
+  );
+
+  const months = useMemo(() => {
+    const unique = new Set(history.map((tx) => monthLabel(tx.settledAt)));
+    return ['Tümü', ...unique];
+  }, [history]);
+
+  const filteredHistory = history.filter((tx) => {
+    if (activeFilter === 'Tümü') return true;
+    return monthLabel(tx.settledAt) === activeFilter;
   });
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
@@ -36,53 +61,61 @@ export default function DebtHistoryScreen() {
       {/* FILTERS */}
       <View style={styles.chipsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
-          {filters.map(f => (
-            <Chip 
-              key={f} 
-              label={f} 
-              active={activeFilter === f} 
-              onPress={() => setActiveFilter(f)} 
+          {months.map(f => (
+            <Chip
+              key={f}
+              label={f}
+              active={activeFilter === f}
+              onPress={() => setActiveFilter(f)}
             />
           ))}
         </ScrollView>
       </View>
 
       {/* LIST */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
-        {filteredHistory.length > 0 ? (
-          <Card noPadding style={styles.txCard}>
-            {filteredHistory.map((tx, index) => (
-              <React.Fragment key={tx.id}>
-                <View style={styles.txRow}>
-                  <View style={styles.txLeft}>
-                    <Avatar initials={tx.initials} size={40} />
-                    <View style={styles.txInfo}>
-                      <Text variant="body" weight="semibold">
-                        {tx.type === 'paid' ? `${tx.person}'e` : `${tx.person}'den`}
+      {isLoading ? (
+        <Loading />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+          {filteredHistory.length > 0 ? (
+            <Card noPadding style={styles.txCard}>
+              {filteredHistory.map((tx, index) => (
+                <React.Fragment key={tx.id}>
+                  <View style={styles.txRow}>
+                    <View style={styles.txLeft}>
+                      <Avatar initials={initialsOf(tx.otherUserName)} size={40} />
+                      <View style={styles.txInfo}>
+                        <Text variant="body" weight="semibold">
+                          {tx.direction === 'paid' ? `${tx.otherUserName}'e` : `${tx.otherUserName}'den`}
+                        </Text>
+                        <Text variant="caption" color={colors.text.secondary}>
+                          {new Date(tx.settledAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.txRight}>
+                      <Text variant="body" weight="bold" color={tx.direction === 'paid' ? colors.text.primary : colors.success}>
+                        {tx.direction === 'paid' ? '-' : '+'}₺{tx.amount.toLocaleString('tr-TR')}
                       </Text>
-                      <Text variant="caption" color={colors.text.secondary}>{tx.date}</Text>
+                      <Text variant="caption" color={colors.text.secondary}>
+                        {tx.direction === 'paid' ? 'ödendi' : 'alındı'}
+                      </Text>
                     </View>
                   </View>
-                  
-                  <View style={styles.txRight}>
-                    <Text variant="body" weight="bold" color={tx.type === 'paid' ? colors.text.primary : colors.success}>
-                      {tx.type === 'paid' ? '-' : '+'}₺{tx.amount}
-                    </Text>
-                    <Text variant="caption" color={colors.text.secondary}>{tx.desc}</Text>
-                  </View>
-                </View>
-                {index < filteredHistory.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
-          </Card>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text variant="body" color={colors.text.secondary} align="center">
-              Bu döneme ait işlem geçmişi bulunamadı.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+                  {index < filteredHistory.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </Card>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text variant="body" color={colors.text.secondary} align="center">
+                Bu döneme ait işlem geçmişi bulunamadı.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
 
     </Screen>
   );

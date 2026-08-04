@@ -13,11 +13,15 @@ export const users = pgTable('users', {
   uniqueIndex('users_email_idx').on(table.email),
 ])
 
+export const settlementMethod = ['cash', 'bank_transfer', 'other'] as const
+
 export const settlements = pgTable('settlements', {
   id: uuid('id').primaryKey().defaultRandom(),
   fromUserId: uuid('from_user_id').notNull().references(() => users.id),
   toUserId: uuid('to_user_id').notNull().references(() => users.id),
   amount: numeric('amount', { precision: 12, scale: 2, mode: 'number' }).notNull(),
+  method: text('method', { enum: settlementMethod }).notNull().default('cash'),
+  note: text('note'),
   settledAt: timestamp('settled_at').notNull().defaultNow(),
 })
 

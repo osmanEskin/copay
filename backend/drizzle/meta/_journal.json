@@ -57,6 +57,13 @@
       "when": 1785834738095,
       "tag": "0007_bills_group_scoped",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785835625909,
+      "tag": "0008_naive_sphinx",
+      "breakpoints": true
     }
   ]
 }

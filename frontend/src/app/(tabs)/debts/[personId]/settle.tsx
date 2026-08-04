@@ -1,35 +1,93 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Screen, Text, Card, Avatar, Button, Input, CurrencyInput, Chip, Modal } from '../../../../components';
+import { Screen, Text, Card, Avatar, Button, Input, CurrencyInput, Chip, Modal, Loading } from '../../../../components';
 import { colors, spacing, radius } from '../../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '../../../../services/api';
+import { getCurrentUser } from '../../../../services/auth';
+import {
+  SETTLEMENT_METHOD_LABELS,
+  getPersonDebt,
+  settleDebt,
+  type SettlementMethod,
+} from '../../../../services/debts';
+
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 export default function SettleDebtScreen() {
-  const { personId } = useLocalSearchParams();
-  
-  // Mock Data
-  const [amount, setAmount] = useState('320');
+  const { personId } = useLocalSearchParams<{ personId: string }>();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [myInitials, setMyInitials] = useState('SE');
+  const [personName, setPersonName] = useState('');
+  const [iOwe, setIOwe] = useState(true);
+
+  const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Nakit');
-  
+  const [method, setMethod] = useState<SettlementMethod>('cash');
+
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
-  const paymentMethods = ['Nakit', 'Havale/EFT', 'Diğer'];
+  useEffect(() => {
+    Promise.all([getCurrentUser(), getPersonDebt(personId)]).then(([user, detail]) => {
+      if (user) setMyInitials(initialsOf(user.name));
+      setPersonName(detail.personName);
+      setIOwe(detail.type !== 'owe_me');
+      setAmount(detail.amount > 0 ? String(detail.amount) : '');
+      setIsLoading(false);
+    });
+  }, [personId]);
 
-  const handleSave = () => {
+  const handleConfirm = async () => {
     setConfirmModalVisible(false);
-    // Settlement kaydetme işlemi burada API'ye gönderilecek
-    setTimeout(() => {
-      Alert.alert("Başarılı", "Hesaplaşma başarıyla kaydedildi.", [
-        { text: "Tamam", onPress: () => router.dismissAll() }
-      ]);
-    }, 500);
+    setErrorMessage(undefined);
+    setIsSubmitting(true);
+    try {
+      await settleDebt({
+        otherUserId: personId,
+        amount: parseFloat(amount.replace(',', '.')),
+        direction: iOwe ? 'i_paid' : 'they_paid',
+        method,
+        note: note || null,
+      });
+      router.dismissAll();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <Screen safeArea backgroundColor={colors.background}>
+        <Loading />
+      </Screen>
+    );
+  }
+
+  const paymentMethods = Object.keys(SETTLEMENT_METHOD_LABELS) as SettlementMethod[];
+  const payerLabel = iOwe ? 'Sen' : personName;
+  const receiverLabel = iOwe ? personName : 'Sen';
+  const payerInitials = iOwe ? myInitials : initialsOf(personName);
+  const receiverInitials = iOwe ? initialsOf(personName) : myInitials;
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -40,14 +98,14 @@ export default function SettleDebtScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
+
         {/* HESAPLAŞMA KARTI (Ödeyen -> Alan) */}
         <Card style={styles.transferCard}>
           <View style={styles.transferRow}>
-            
+
             <View style={styles.transferPerson}>
-              <Avatar initials="SE" size={48} />
-              <Text variant="body" weight="semibold" style={{ marginTop: spacing.xs }}>Sen</Text>
+              <Avatar initials={payerInitials} size={48} />
+              <Text variant="body" weight="semibold" style={{ marginTop: spacing.xs }}>{payerLabel}</Text>
               <Text variant="caption" color={colors.text.secondary}>Ödeyen</Text>
             </View>
 
@@ -58,8 +116,8 @@ export default function SettleDebtScreen() {
             </View>
 
             <View style={styles.transferPerson}>
-              <Avatar initials="ME" size={48} />
-              <Text variant="body" weight="semibold" style={{ marginTop: spacing.xs }}>Mehmet</Text>
+              <Avatar initials={receiverInitials} size={48} />
+              <Text variant="body" weight="semibold" style={{ marginTop: spacing.xs }}>{receiverLabel}</Text>
               <Text variant="caption" color={colors.text.secondary}>Alıcı</Text>
             </View>
 
@@ -68,38 +126,34 @@ export default function SettleDebtScreen() {
 
         {/* FORM */}
         <View style={styles.formSection}>
-          <CurrencyInput 
-            label="Ödenecek Tutar" 
-            value={amount} 
-            onChangeText={setAmount} 
+          <CurrencyInput
+            label="Ödenecek Tutar"
+            value={amount}
+            onChangeText={setAmount}
           />
-
-          <View style={styles.dateSelector}>
-            <Text variant="caption" color={colors.text.secondary}>Tarih</Text>
-            <View style={styles.dateInner}>
-              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-              <Text variant="body" style={{ marginLeft: spacing.xs }}>24 Tem 2026</Text>
-            </View>
-          </View>
 
           <Text variant="body" weight="medium" style={styles.subTitle}>Ödeme Yöntemi</Text>
           <View style={styles.chipsRow}>
-            {paymentMethods.map(method => (
-              <Chip 
-                key={method} 
-                label={method} 
-                active={paymentMethod === method} 
-                onPress={() => setPaymentMethod(method)} 
+            {paymentMethods.map(m => (
+              <Chip
+                key={m}
+                label={SETTLEMENT_METHOD_LABELS[m]}
+                active={method === m}
+                onPress={() => setMethod(m)}
               />
             ))}
           </View>
 
-          <Input 
-            label="Not (Opsiyonel)" 
-            placeholder="Örn: Temmuz ayı elektrik borcu" 
-            value={note} 
-            onChangeText={setNote} 
+          <Input
+            label="Not (Opsiyonel)"
+            placeholder="Örn: Temmuz ayı elektrik borcu"
+            value={note}
+            onChangeText={setNote}
           />
+
+          {errorMessage && (
+            <Text variant="caption" color={colors.danger}>{errorMessage}</Text>
+          )}
         </View>
 
         <View style={{ height: 100 }} />
@@ -107,33 +161,34 @@ export default function SettleDebtScreen() {
 
       {/* ALT BUTON */}
       <View style={styles.bottomBar}>
-        <Button 
-          title="Kaydet" 
-          onPress={() => setConfirmModalVisible(true)} 
+        <Button
+          title="Kaydet"
+          onPress={() => setConfirmModalVisible(true)}
           disabled={!amount}
         />
       </View>
 
       {/* ONAY MODALI */}
-      <Modal 
-        visible={confirmModalVisible} 
+      <Modal
+        visible={confirmModalVisible}
         title="Hesaplaşma Onayı"
         onClose={() => setConfirmModalVisible(false)}
       >
         <View style={styles.modalContent}>
           <Text variant="body" align="center" style={{ marginBottom: spacing.xl, fontSize: 16 }}>
-            Mehmet'e <Text weight="bold" color={colors.primary}>₺{amount}</Text> ödeme kaydedilsin mi?
+            {receiverLabel}'e <Text weight="bold" color={colors.primary}>₺{amount}</Text> ödeme kaydedilsin mi?
           </Text>
           <View style={styles.modalActions}>
-            <Button 
-              title="İptal" 
-              variant="outline" 
-              onPress={() => setConfirmModalVisible(false)} 
+            <Button
+              title="İptal"
+              variant="outline"
+              onPress={() => setConfirmModalVisible(false)}
               style={{ flex: 1 }}
             />
-            <Button 
-              title="Onayla" 
-              onPress={handleSave} 
+            <Button
+              title="Onayla"
+              onPress={handleConfirm}
+              isLoading={isSubmitting}
               style={{ flex: 1 }}
             />
           </View>
@@ -192,18 +247,6 @@ const styles = StyleSheet.create({
   },
   formSection: {
     gap: spacing.md,
-  },
-  dateSelector: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xs,
   },
   subTitle: {
     marginBottom: -spacing.xs,
