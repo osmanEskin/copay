@@ -1,7 +1,8 @@
 import { apiFetch } from "./api";
 import { getToken } from "./tokenStorage";
+import type { SplitMethod } from "../hooks/useParticipantSplit";
 
-export type SplitMethod = "equal" | "percentage" | "amount";
+export type { SplitMethod };
 
 export const EXPENSE_CATEGORIES = ["Market", "Restoran", "Abonelik", "Ulaşım", "Kafe", "Diğer"];
 

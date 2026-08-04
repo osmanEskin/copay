@@ -7,6 +7,7 @@ import { db } from './db/index.js'
 import auth from './routes/auth.js'
 import groups from './routes/groups.js'
 import expenses from './routes/expenses.js'
+import bills from './routes/bills.js'
 
 const app = new Hono()
 
@@ -19,6 +20,7 @@ app.get('/', (c) => {
 app.route('/auth', auth)
 app.route('/groups', groups)
 app.route('/expenses', expenses)
+app.route('/bills', bills)
 
 app.get('/health/db', async (c) => {
   const result = await db.execute(sql`select 1 as ok`)

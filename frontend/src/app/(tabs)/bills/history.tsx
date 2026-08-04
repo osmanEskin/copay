@@ -1,30 +1,44 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, BillCard, Chip } from '../../../components';
-import { colors, spacing, radius } from '../../../theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { Screen, Text, BillCard, Chip, Loading } from '../../../components';
+import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { BillStatus } from '../../../components/BillCard';
+import { getBillHistory, iconForBillCategory, type BillSummary } from '../../../services/bills';
 
-const MOCK_HISTORY = [
-  { id: '10', title: 'Elektrik', category: 'Haziran 2026', amount: 980, dueDate: '28 Haziran', payer: 'Mehmet', status: 'Ödendi' as BillStatus, icon: 'flash' as const },
-  { id: '11', title: 'Su', category: 'Haziran 2026', amount: 195, dueDate: '15 Haziran', payer: 'Ahmet', status: 'Ödendi' as BillStatus, icon: 'water' as const },
-  { id: '12', title: 'İnternet', category: 'Mayıs 2026', amount: 350, dueDate: '30 Mayıs', payer: 'Sen', status: 'Ödendi' as BillStatus, icon: 'wifi' as const },
-  { id: '13', title: 'Elektrik', category: 'Mayıs 2026', amount: 840, dueDate: '28 Mayıs', payer: 'Mehmet', status: 'Ödendi' as BillStatus, icon: 'flash' as const },
-];
+function monthLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+}
 
 export default function BillsHistoryScreen() {
-  const filters = ['Tümü', 'Temmuz', 'Haziran', 'Mayıs', 'Nisan'];
-  const [activeFilter, setActiveFilter] = useState('Haziran');
+  const [history, setHistory] = useState<BillSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('Tümü');
 
-  const filteredHistory = MOCK_HISTORY.filter(bill => {
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      getBillHistory().then((list) => {
+        setHistory(list);
+        setIsLoading(false);
+      });
+    }, [])
+  );
+
+  const months = useMemo(() => {
+    const unique = new Set(history.filter((b) => b.paidAt).map((b) => monthLabel(b.paidAt!)));
+    return ['Tümü', ...unique];
+  }, [history]);
+
+  const filteredHistory = history.filter((bill) => {
     if (activeFilter === 'Tümü') return true;
-    return bill.category.includes(activeFilter);
+    return bill.paidAt && monthLabel(bill.paidAt) === activeFilter;
   });
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
@@ -34,50 +48,48 @@ export default function BillsHistoryScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* YIL FİLTRESİ */}
-      <View style={styles.yearSelector}>
-        <Text variant="body" weight="bold" color={colors.text.primary}>2026 Yılı</Text>
-        <Ionicons name="chevron-down" size={20} color={colors.text.primary} />
-      </View>
-
       {/* AY FİLTRESİ */}
       <View style={styles.chipsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
-          {filters.map(f => (
-            <Chip 
-              key={f} 
-              label={f} 
-              active={activeFilter === f} 
-              onPress={() => setActiveFilter(f)} 
+          {months.map(f => (
+            <Chip
+              key={f}
+              label={f}
+              active={activeFilter === f}
+              onPress={() => setActiveFilter(f)}
             />
           ))}
         </ScrollView>
       </View>
 
       {/* LISTE */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
-        {filteredHistory.length > 0 ? (
-          filteredHistory.map((bill) => (
-            <BillCard
-              key={bill.id}
-              title={bill.title}
-              category={bill.category}
-              amount={bill.amount}
-              dueDate={bill.dueDate}
-              payer={bill.payer}
-              status={bill.status}
-              icon={bill.icon}
-              onPress={() => router.push(`/bills/${bill.id}`)}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text variant="body" color={colors.text.secondary} align="center">
-              Bu aya ait geçmiş fatura bulunamadı.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+      {isLoading ? (
+        <Loading />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+          {filteredHistory.length > 0 ? (
+            filteredHistory.map((bill) => (
+              <BillCard
+                key={bill.id}
+                title={bill.title}
+                category={bill.category}
+                amount={bill.amount}
+                dueDate={new Date(bill.dueDate).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
+                payer={bill.payerName}
+                status={bill.status}
+                icon={iconForBillCategory(bill.category)}
+                onPress={() => router.push(`/bills/${bill.id}`)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text variant="body" color={colors.text.secondary} align="center">
+                Bu döneme ait ödenmiş fatura bulunamadı.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
 
     </Screen>
   );
@@ -94,13 +106,6 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: spacing.sm,
-  },
-  yearSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.xs,
   },
   chipsContainer: {
     marginBottom: spacing.md,

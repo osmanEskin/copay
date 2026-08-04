@@ -14,25 +14,35 @@ import { colors, spacing, radius } from '../../theme';
 import { ApiError } from '../../services/api';
 import { getCurrentUser } from '../../services/auth';
 import { getGroup, getMyGroups, type Group, type GroupMember } from '../../services/groups';
-import { EXPENSE_CATEGORIES, type ExpenseInput, type SplitMethod } from '../../services/expenses';
-import { useParticipantSplit } from '../../hooks/useParticipantSplit';
+import {
+  BILL_CATEGORIES,
+  RECURRENCE_LABELS,
+  REMINDER_LABELS,
+  type BillInput,
+  type BillRecurrence,
+  type BillReminder,
+} from '../../services/bills';
+import { useParticipantSplit, type SplitMethod } from '../../hooks/useParticipantSplit';
 
-export interface ExpenseFormInitialValues {
+export interface BillFormInitialValues {
   groupId: string;
   title: string;
   category: string;
   description: string;
-  date: string;
+  billDate: string;
+  dueDate: string;
   amount: string;
   payerId: string;
   splitMethod: SplitMethod;
+  recurrence: BillRecurrence;
+  reminder: BillReminder;
   participants: { userId: string; shareAmount: number }[];
 }
 
-interface ExpenseFormProps {
+interface BillFormProps {
   mode: 'create' | 'edit';
-  initialValues?: ExpenseFormInitialValues;
-  onSubmit: (input: ExpenseInput) => Promise<void>;
+  initialValues?: BillFormInitialValues;
+  onSubmit: (input: BillInput) => Promise<void>;
   submitLabel: string;
   headerTitle: string;
 }
@@ -48,7 +58,25 @@ function formatDateLabel(iso: string): string {
   return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, headerTitle }: ExpenseFormProps) {
+function isoToDDMMYYYY(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  return `${day}.${month}.${year}`;
+}
+
+function ddmmyyyyToIso(text: string): string | null {
+  const match = text.trim().match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+export function BillForm({ mode, initialValues, onSubmit, submitLabel, headerTitle }: BillFormProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [myGroups, setMyGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState(initialValues?.groupId ?? '');
@@ -57,12 +85,17 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
 
   const [title, setTitle] = useState(initialValues?.title ?? '');
-  const [category, setCategory] = useState(initialValues?.category ?? EXPENSE_CATEGORIES[0]);
+  const [category, setCategory] = useState(initialValues?.category ?? BILL_CATEGORIES[0]);
   const [description, setDescription] = useState(initialValues?.description ?? '');
   const [amountText, setAmountText] = useState(initialValues?.amount ?? '');
+  const [dueDateText, setDueDateText] = useState(
+    initialValues?.dueDate ? isoToDDMMYYYY(initialValues.dueDate) : ''
+  );
   const [payerId, setPayerId] = useState(initialValues?.payerId ?? '');
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(initialValues?.splitMethod ?? 'equal');
-  const date = initialValues?.date ?? todayIso();
+  const [recurrence, setRecurrence] = useState<BillRecurrence>(initialValues?.recurrence ?? 'none');
+  const [reminder, setReminder] = useState<BillReminder>(initialValues?.reminder ?? 'none');
+  const billDate = initialValues?.billDate ?? todayIso();
 
   const initialParticipantValues = useMemo(() => {
     const values: Record<string, string> = {};
@@ -147,8 +180,13 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
       setErrorMessage('Başlık ve geçerli bir tutar gerekli.');
       return;
     }
+    const dueDateIso = ddmmyyyyToIso(dueDateText);
+    if (!dueDateIso) {
+      setErrorMessage('Son ödeme tarihini GG.AA.YYYY formatında gir (örn. 28.08.2026).');
+      return;
+    }
     if (!payerId) {
-      setErrorMessage('Ödeyen kişiyi seçmelisin.');
+      setErrorMessage('Ödeyecek kişiyi seçmelisin.');
       return;
     }
 
@@ -166,9 +204,12 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
         category,
         description: description || null,
         amount: amountNum,
-        date,
+        billDate,
+        dueDate: dueDateIso,
         payerId,
         splitMethod,
+        recurrence,
+        reminder,
         participants: result.participants,
       });
     } catch (error) {
@@ -195,7 +236,7 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
           <Ionicons name="people-outline" size={64} color={colors.text.secondary} />
           <Text variant="h2" align="center" style={styles.emptyTitle}>Önce bir grubun olmalı</Text>
           <Text variant="body" color={colors.text.secondary} align="center" style={styles.emptyDescription}>
-            Harcama ekleyebilmek için bir grup oluşturman veya bir gruba katılman gerekiyor.
+            Fatura ekleyebilmek için bir grup oluşturman veya bir gruba katılman gerekiyor.
           </Text>
           <Button title="Grup Yönetimine Git" onPress={() => router.replace('/profile/group')} />
         </View>
@@ -217,7 +258,7 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
 
         {mode === 'create' && myGroups.length > 1 && (
           <View style={styles.section}>
-            <Text variant="body" weight="semibold" style={styles.sectionTitle}>Grup</Text>
+            <Text variant="body" weight="bold" style={styles.sectionTitle}>Grup</Text>
             <View style={styles.chipsRow}>
               {myGroups.map((g) => (
                 <Chip key={g.id} label={g.name} active={groupId === g.id} onPress={() => setGroupId(g.id)} />
@@ -227,21 +268,46 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
         )}
 
         <View style={styles.section}>
-          <Input label="Başlık" placeholder="Ne için harcadınız?" value={title} onChangeText={setTitle} />
+          <Text variant="body" weight="bold" style={styles.sectionTitle}>Temel Bilgiler</Text>
+          <Input label="Fatura Adı" placeholder="Örn: Elektrik, İnternet" value={title} onChangeText={setTitle} />
 
-          <CurrencyInput label="Tutar" value={amountText} onChangeText={setAmountText} />
-
-          <View style={styles.dateSelector}>
-            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-            <Text variant="body" style={{ marginLeft: spacing.sm }}>{formatDateLabel(date)}</Text>
+          <Text variant="body" weight="medium" style={styles.subTitle}>Kategori</Text>
+          <View style={styles.chipsRow}>
+            {BILL_CATEGORIES.map((c) => (
+              <Chip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />
+            ))}
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text variant="body" weight="semibold" style={styles.sectionTitle}>Kategori</Text>
+          <Text variant="body" weight="bold" style={styles.sectionTitle}>Finansal Bilgiler</Text>
+          <CurrencyInput label="Tutar" value={amountText} onChangeText={setAmountText} />
+
+          <View style={styles.dateSelectorRow}>
+            <View style={styles.dateSelector}>
+              <Text variant="caption" color={colors.text.secondary}>Fatura Tarihi</Text>
+              <View style={styles.dateInner}>
+                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                <Text variant="body" style={{ marginLeft: spacing.xs }}>{formatDateLabel(billDate)}</Text>
+              </View>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Son Ödeme (GG.AA.YYYY)"
+                placeholder="28.08.2026"
+                value={dueDateText}
+                onChangeText={setDueDateText}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text variant="body" weight="bold" style={styles.sectionTitle}>Tekrarlama</Text>
           <View style={styles.chipsRow}>
-            {EXPENSE_CATEGORIES.map((c) => (
-              <Chip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />
+            {(Object.keys(RECURRENCE_LABELS) as BillRecurrence[]).map((r) => (
+              <Chip key={r} label={RECURRENCE_LABELS[r]} active={recurrence === r} onPress={() => setRecurrence(r)} />
             ))}
           </View>
         </View>
@@ -251,7 +317,8 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
         ) : (
           <>
             <View style={styles.section}>
-              <Text variant="body" weight="semibold" style={styles.sectionTitle}>Kim Ödedi?</Text>
+              <Text variant="body" weight="bold" style={styles.sectionTitle}>Kişiler</Text>
+              <Text variant="body" weight="medium" style={styles.subTitle}>Ödeyecek Kişi (Sorumlu)</Text>
               <View style={styles.chipsRow}>
                 {members.map((m) => (
                   <Chip
@@ -262,32 +329,42 @@ export function ExpenseForm({ mode, initialValues, onSubmit, submitLabel, header
                   />
                 ))}
               </View>
-            </View>
 
-            <View style={styles.section}>
-              <ParticipantSplitPicker
-                members={members}
-                currentUserId={currentUserId}
-                splitMethod={splitMethod}
-                onSplitMethodChange={handleSplitMethodChange}
-                includedUserIds={includedUserIds}
-                onToggleParticipant={toggleParticipant}
-                participantValues={participantValues}
-                onParticipantValueChange={setParticipantValue}
-              />
+              <View style={{ marginTop: spacing.md }}>
+                <ParticipantSplitPicker
+                  members={members}
+                  currentUserId={currentUserId}
+                  splitMethod={splitMethod}
+                  onSplitMethodChange={handleSplitMethodChange}
+                  includedUserIds={includedUserIds}
+                  onToggleParticipant={toggleParticipant}
+                  participantValues={participantValues}
+                  onParticipantValueChange={setParticipantValue}
+                />
+              </View>
             </View>
           </>
         )}
 
         <View style={styles.section}>
-          <Input
-            label="Açıklama (İsteğe bağlı)"
-            placeholder="Harcama ile ilgili notlar..."
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={3}
-          />
+          <Text variant="body" weight="bold" style={styles.sectionTitle}>Ek Detaylar</Text>
+          <Text variant="body" weight="medium" style={styles.subTitle}>Hatırlatma</Text>
+          <View style={styles.chipsRow}>
+            {(Object.keys(REMINDER_LABELS) as BillReminder[]).map((r) => (
+              <Chip key={r} label={REMINDER_LABELS[r]} active={reminder === r} onPress={() => setReminder(r)} />
+            ))}
+          </View>
+
+          <View style={{ marginTop: spacing.md }}>
+            <Input
+              label="Not (İsteğe bağlı)"
+              placeholder="Faturayla ilgili serbest notunuz..."
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+            />
+          </View>
         </View>
 
         {errorMessage && (
@@ -331,25 +408,42 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: spacing.xl,
-    gap: spacing.md,
+    paddingBottom: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border + '50',
   },
   sectionTitle: {
-    marginBottom: spacing.xs,
+    marginBottom: spacing.md,
+    fontSize: 18,
+    color: colors.primary,
+  },
+  subTitle: {
+    marginBottom: spacing.sm,
+    color: colors.text.secondary,
   },
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  dateSelector: {
+  dateSelectorRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    alignItems: 'flex-start',
+    marginTop: spacing.sm,
+    gap: spacing.md,
+  },
+  dateSelector: {
+    flex: 1,
     backgroundColor: colors.surface,
+    padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  dateInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xs,
   },
   bottomBar: {
     position: 'absolute',

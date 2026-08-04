@@ -21,3 +21,5 @@ export * from './ExpenseCard';
 export * from './BillCard';
 export * from './PersonDebtCard';
 export * from './ExpenseForm';
+export * from './ParticipantSplitPicker';
+export * from './BillForm';

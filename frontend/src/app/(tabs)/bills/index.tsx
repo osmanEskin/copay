@@ -1,28 +1,49 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Input, Chip, BillCard, Button } from '../../../components';
-import { colors, spacing, radius } from '../../../theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { Screen, Text, Input, Chip, BillCard, Loading } from '../../../components';
+import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { BillStatus } from '../../../components/BillCard';
-
-// Örnek fatura verileri
-const MOCK_BILLS = [
-  { id: '1', title: 'Elektrik', category: 'Fatura', amount: 1240, dueDate: '28 Temmuz', payer: 'Mehmet', status: 'Bekliyor' as BillStatus, icon: 'flash' as const },
-  { id: '2', title: 'İnternet', category: 'Abonelik', amount: 350, dueDate: '30 Temmuz', payer: 'Sen', status: 'Yaklaşan' as BillStatus, icon: 'wifi' as const },
-  { id: '3', title: 'Su', category: 'Fatura', amount: 210, dueDate: '15 Temmuz', payer: 'Ahmet', status: 'Geciken' as BillStatus, icon: 'water' as const },
-  { id: '4', title: 'Doğalgaz', category: 'Fatura', amount: 80, dueDate: '10 Temmuz', payer: 'Ayşe', status: 'Ödendi' as BillStatus, icon: 'flame' as const },
-];
+import { ApiError } from '../../../services/api';
+import { getCurrentUser } from '../../../services/auth';
+import { getMyBills, iconForBillCategory, type BillSummary } from '../../../services/bills';
 
 export default function BillsIndexScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('Tümü');
+  const [bills, setBills] = useState<BillSummary[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | undefined>();
 
   const filters = ['Tümü', 'Bekleyen', 'Yaklaşan', 'Geciken', 'Ödenen'];
 
-  const filteredBills = MOCK_BILLS.filter(bill => {
+  const loadBills = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(undefined);
+    try {
+      const [user, list] = await Promise.all([getCurrentUser(), getMyBills()]);
+      setCurrentUserId(user?.id ?? null);
+      setBills(list);
+    } catch (error) {
+      setLoadError(
+        error instanceof ApiError ? error.message : 'Faturalar yüklenemedi, backend çalışıyor mu kontrol et.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadBills();
+    }, [loadBills])
+  );
+
+  const filteredBills = bills.filter(bill => {
     const matchesSearch = bill.title.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     let matchesStatus = true;
     if (activeFilter === 'Bekleyen') matchesStatus = bill.status === 'Bekliyor';
     if (activeFilter === 'Yaklaşan') matchesStatus = bill.status === 'Yaklaşan';
@@ -34,19 +55,19 @@ export default function BillsIndexScreen() {
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER & TOP NAVIGATION */}
       <View style={styles.header}>
         <Text variant="h1" color={colors.text.primary}>Faturalar</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.iconButton} 
+          <TouchableOpacity
+            style={styles.iconButton}
             onPress={() => router.push('/bills/recurring')}
           >
             <Ionicons name="repeat" size={24} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.iconButton} 
+          <TouchableOpacity
+            style={styles.iconButton}
             onPress={() => router.push('/bills/history')}
           >
             <Ionicons name="time-outline" size={24} color={colors.primary} />
@@ -57,61 +78,66 @@ export default function BillsIndexScreen() {
       {/* SEARCH & FILTERS */}
       <View style={styles.searchSection}>
         <View style={styles.searchContainer}>
-          <Input 
-            placeholder="Faturalarda ara..." 
+          <Input
+            placeholder="Faturalarda ara..."
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
-        <TouchableOpacity style={styles.sortButton}>
-          <Ionicons name="filter" size={20} color={colors.text.primary} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.chipsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
           {filters.map(f => (
-            <Chip 
-              key={f} 
-              label={f} 
-              active={activeFilter === f} 
-              onPress={() => setActiveFilter(f)} 
+            <Chip
+              key={f}
+              label={f}
+              active={activeFilter === f}
+              onPress={() => setActiveFilter(f)}
             />
           ))}
         </ScrollView>
       </View>
 
       {/* BILL LIST */}
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        contentContainerStyle={styles.listContent}
-      >
-        {filteredBills.length > 0 ? (
-          filteredBills.map((bill) => (
-            <BillCard
-              key={bill.id}
-              title={bill.title}
-              category={bill.category}
-              amount={bill.amount}
-              dueDate={bill.dueDate}
-              payer={bill.payer}
-              status={bill.status}
-              icon={bill.icon}
-              onPress={() => router.push(`/bills/${bill.id}`)}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text variant="body" color={colors.text.secondary} align="center">
-              Filtrelere uygun fatura bulunamadı.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+      {isLoading ? (
+        <Loading />
+      ) : loadError ? (
+        <View style={styles.emptyContainer}>
+          <Text variant="body" color={colors.danger} align="center">{loadError}</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        >
+          {filteredBills.length > 0 ? (
+            filteredBills.map((bill) => (
+              <BillCard
+                key={bill.id}
+                title={bill.title}
+                category={bill.category}
+                amount={bill.amount}
+                dueDate={new Date(bill.dueDate).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
+                payer={bill.payerId === currentUserId ? 'Sen' : bill.payerName}
+                status={bill.status}
+                icon={iconForBillCategory(bill.category)}
+                onPress={() => router.push(`/bills/${bill.id}`)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text variant="body" color={colors.text.secondary} align="center">
+                Filtrelere uygun fatura bulunamadı.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
 
       {/* FLOATING ACTION BUTTON */}
-      <TouchableOpacity 
-        style={styles.fab} 
+      <TouchableOpacity
+        style={styles.fab}
         onPress={() => router.push('/bills/new')}
         activeOpacity={0.8}
       >
@@ -152,17 +178,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     flex: 1,
-    marginBottom: -spacing.md, // Input'un varsayılan margin'ini yok etmek için
-  },
-  sortButton: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: -spacing.md,
   },
   chipsContainer: {
     marginBottom: spacing.md,
@@ -173,7 +189,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: 100, // FAB için boşluk
+    paddingBottom: 100,
   },
   emptyContainer: {
     padding: spacing.xl,
