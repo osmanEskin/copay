@@ -59,6 +59,12 @@ export default function DebtsIndexScreen() {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconButton}
+            onPress={() => router.push('/debts/settle')}
+          >
+            <Ionicons name="swap-horizontal" size={24} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconButton}
             onPress={() => router.push('/debts/history')}
           >
             <Ionicons name="time-outline" size={24} color={colors.primary} />
@@ -157,6 +163,7 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
+    gap: spacing.xs,
   },
   iconButton: {
     width: 40,

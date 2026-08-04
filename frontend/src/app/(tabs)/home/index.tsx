@@ -266,7 +266,7 @@ export default function HomeScreen() {
                 <Text variant="caption" align="center" style={styles.actionLabel}>Fatura{'\n'}Ekle</Text>
               </View>
               <View style={styles.actionItem}>
-                <IconButton icon="cash" variant="solid" size={28} onPress={() => router.push('/debts')} />
+                <IconButton icon="cash" variant="solid" size={28} onPress={() => router.push('/debts/settle')} />
                 <Text variant="caption" align="center" style={styles.actionLabel}>Ödeme{'\n'}Yap</Text>
               </View>
               <View style={styles.actionItem}>
