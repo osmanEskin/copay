@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Input, Button, Avatar, Modal } from '../../../components';
+import { Screen, Text, Input, Button, Avatar } from '../../../components';
 import { colors, spacing, radius, shadow } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from '../../../services/api';
@@ -14,7 +14,6 @@ export default function AccountScreen() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
-  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
@@ -51,12 +50,6 @@ export default function AccountScreen() {
 
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || '?';
 
-  const handleChangePhoto = (option: string) => {
-    setAvatarModalVisible(false);
-    // Kamera veya Galeri işlemleri
-    Alert.alert("Fotoğraf", `${option} seçildi (Simülasyon)`);
-  };
-
   return (
     <Screen safeArea backgroundColor={colors.background}>
       
@@ -71,17 +64,9 @@ export default function AccountScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
-        {/* AVATAR DÜZENLEME */}
+        {/* AVATAR */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarWrapper}>
-            <Avatar initials={initials} size={100} />
-            <TouchableOpacity 
-              style={styles.editAvatarBtn} 
-              onPress={() => setAvatarModalVisible(true)}
-            >
-              <Ionicons name="camera" size={20} color={colors.text.inverse} />
-            </TouchableOpacity>
-          </View>
+          <Avatar initials={initials} size={100} />
         </View>
 
         {/* FORM */}
@@ -113,28 +98,6 @@ export default function AccountScreen() {
         />
       </View>
 
-      {/* AVATAR MODALI */}
-      <Modal 
-        visible={avatarModalVisible} 
-        title="Profil Fotoğrafı"
-        onClose={() => setAvatarModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <TouchableOpacity style={styles.modalOption} onPress={() => handleChangePhoto('Kamera')}>
-            <Ionicons name="camera-outline" size={24} color={colors.text.primary} />
-            <Text variant="body" weight="medium" style={styles.modalOptionText}>Kamera ile Çek</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.modalOption} onPress={() => handleChangePhoto('Galeri')}>
-            <Ionicons name="image-outline" size={24} color={colors.text.primary} />
-            <Text variant="body" weight="medium" style={styles.modalOptionText}>Galeriden Seç</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.modalOption} onPress={() => handleChangePhoto('Kaldır')}>
-            <Ionicons name="trash-outline" size={24} color={colors.danger} />
-            <Text variant="body" weight="medium" color={colors.danger} style={styles.modalOptionText}>Fotoğrafı Kaldır</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
     </Screen>
   );
 }
@@ -161,22 +124,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xxl,
   },
-  avatarWrapper: {
-    position: 'relative',
-  },
-  editAvatarBtn: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: colors.primary,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: colors.background,
-  },
   formSection: {
     gap: spacing.sm,
   },
@@ -190,17 +137,4 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     ...shadow.lg,
   },
-  modalContent: {
-    gap: spacing.sm,
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border + '50',
-  },
-  modalOptionText: {
-    marginLeft: spacing.md,
-  }
 });

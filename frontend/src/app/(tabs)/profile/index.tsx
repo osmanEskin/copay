@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { confirmAsync } from '../../../utils/confirm';
 import { getCurrentUser, logout } from '../../../services/auth';
 import { getMyGroups } from '../../../services/groups';
+import { getMyExpenses } from '../../../services/expenses';
+import { getMyBills } from '../../../services/bills';
 
 // Yardımcı Bileşen: Menü Satırı
 const MenuRow = ({ 
@@ -41,17 +43,31 @@ const MenuRow = ({
 export default function ProfileIndexScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [joinDate, setJoinDate] = useState('');
   const [groupCount, setGroupCount] = useState<number | null>(null);
+  const [expenseCount, setExpenseCount] = useState<number | null>(null);
+  const [billCount, setBillCount] = useState<number | null>(null);
+  const [totalPaid, setTotalPaid] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      getCurrentUser().then((user) => {
-        if (user) {
-          setName(user.name);
-          setEmail(user.email);
+      Promise.all([getCurrentUser(), getMyGroups(), getMyExpenses(), getMyBills()]).then(
+        ([user, groups, expenses, bills]) => {
+          if (user) {
+            setName(user.name);
+            setEmail(user.email);
+            if (user.createdAt) {
+              setJoinDate(new Date(user.createdAt).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }));
+            }
+          }
+          setGroupCount(groups.length);
+          setExpenseCount(expenses.length);
+          setBillCount(bills.length);
+          const paidExpenses = expenses.filter((e) => e.payerId === user?.id).reduce((sum, e) => sum + e.amount, 0);
+          const paidBills = bills.filter((b) => b.payerId === user?.id).reduce((sum, b) => sum + b.amount, 0);
+          setTotalPaid(paidExpenses + paidBills);
         }
-      });
-      getMyGroups().then((groups) => setGroupCount(groups.length));
+      );
     }, [])
   );
 
@@ -90,7 +106,7 @@ export default function ProfileIndexScreen() {
           <Text variant="h2">{name}</Text>
           <Text variant="body" color={colors.text.secondary}>{email}</Text>
           <Text variant="caption" color={colors.text.secondary} style={styles.joinDate}>
-            Katılım: Ocak 2026
+            {joinDate ? `Katılım: ${joinDate}` : ''}
           </Text>
         </View>
 
@@ -98,17 +114,17 @@ export default function ProfileIndexScreen() {
         <Card style={styles.statsCard}>
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>142</Text>
+              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>{expenseCount ?? '–'}</Text>
               <Text variant="caption" color={colors.text.secondary} align="center" numberOfLines={1} adjustsFontSizeToFit>Harcama</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>12</Text>
+              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>{billCount ?? '–'}</Text>
               <Text variant="caption" color={colors.text.secondary} align="center" numberOfLines={1} adjustsFontSizeToFit>Fatura</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>₺12.4K</Text>
+              <Text variant="h2" color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>{totalPaid !== null ? `₺${totalPaid.toLocaleString('tr-TR')}` : '–'}</Text>
               <Text variant="caption" color={colors.text.secondary} align="center" numberOfLines={1} adjustsFontSizeToFit>Ödenen</Text>
             </View>
             <View style={styles.statDivider} />

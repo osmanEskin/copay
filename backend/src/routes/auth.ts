@@ -111,6 +111,7 @@ auth.get('/me', jwt({ secret: JWT_SECRET, alg: 'HS256' }), async (c) => {
     phone: user.phone,
     email: user.email,
     twoFactorEnabled: user.twoFactorEnabled,
+    createdAt: user.createdAt,
   })
 })
 
@@ -146,6 +147,85 @@ auth.patch('/2fa', jwt({ secret: JWT_SECRET, alg: 'HS256' }), zValidator('json',
   await db.update(users).set({ twoFactorEnabled: enabled }).where(eq(users.id, user.id))
 
   return c.json({ twoFactorEnabled: enabled })
+})
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+})
+
+auth.patch('/password', jwt({ secret: JWT_SECRET, alg: 'HS256' }), zValidator('json', changePasswordSchema), async (c) => {
+  const payload = c.get('jwtPayload') as { sub: string }
+  const { currentPassword, newPassword } = c.req.valid('json')
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.sub) })
+  if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    return c.json({ error: 'Mevcut şifre yanlış' }, 401)
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10)
+  await db.update(users).set({ passwordHash }).where(eq(users.id, user.id))
+
+  return c.json({ message: 'Şifreniz güncellendi' })
+})
+
+const deleteAccountSchema = z.object({
+  password: z.string().min(1),
+})
+
+auth.delete('/account', jwt({ secret: JWT_SECRET, alg: 'HS256' }), zValidator('json', deleteAccountSchema), async (c) => {
+  const payload = c.get('jwtPayload') as { sub: string }
+  const { password } = c.req.valid('json')
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.sub) })
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return c.json({ error: 'Şifre yanlış' }, 401)
+  }
+
+  try {
+    await db.delete(users).where(eq(users.id, payload.sub))
+  } catch (error) {
+    const code = (error as { code?: string; cause?: { code?: string } })?.cause?.code
+      ?? (error as { code?: string })?.code
+    if (code === '23503') {
+      return c.json({
+        error: 'Paylaşılan harcama, fatura veya hesaplaşma geçmişin olduğu için hesabını şu an silemiyoruz. Önce gruplarındaki kayıtlarını temizlemen gerekiyor.',
+      }, 400)
+    }
+    throw error
+  }
+
+  return c.json({ success: true })
+})
+
+const notificationPreferencesSchema = z.object({
+  notifyNewExpense: z.boolean(),
+  notifyNewBill: z.boolean(),
+  notifyUpcomingBills: z.boolean(),
+  notifyDebtUpdates: z.boolean(),
+})
+
+auth.get('/notification-preferences', jwt({ secret: JWT_SECRET, alg: 'HS256' }), async (c) => {
+  const payload = c.get('jwtPayload') as { sub: string }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.sub) })
+  if (!user) {
+    return c.json({ error: 'Kullanıcı bulunamadı' }, 404)
+  }
+  return c.json({
+    notifyNewExpense: user.notifyNewExpense,
+    notifyNewBill: user.notifyNewBill,
+    notifyUpcomingBills: user.notifyUpcomingBills,
+    notifyDebtUpdates: user.notifyDebtUpdates,
+  })
+})
+
+auth.patch('/notification-preferences', jwt({ secret: JWT_SECRET, alg: 'HS256' }), zValidator('json', notificationPreferencesSchema), async (c) => {
+  const payload = c.get('jwtPayload') as { sub: string }
+  const prefs = c.req.valid('json')
+
+  await db.update(users).set(prefs).where(eq(users.id, payload.sub))
+
+  return c.json(prefs)
 })
 
 const forgotPasswordSchema = z.object({

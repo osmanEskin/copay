@@ -8,6 +8,10 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+  notifyNewExpense: boolean('notify_new_expense').notNull().default(true),
+  notifyNewBill: boolean('notify_new_bill').notNull().default(true),
+  notifyUpcomingBills: boolean('notify_upcoming_bills').notNull().default(true),
+  notifyDebtUpdates: boolean('notify_debt_updates').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('users_email_idx').on(table.email),

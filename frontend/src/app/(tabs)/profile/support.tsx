@@ -1,18 +1,47 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Divider } from '../../../components';
+import { Screen, Text, Divider, Modal, Input, Button } from '../../../components';
 import { colors, spacing, radius } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '../../../services/api';
+import { sendSupportFeedback } from '../../../services/auth';
 
 export default function SupportScreen() {
-  
-  const handlePress = (title: string) => {
-    Alert.alert(title, `"${title}" sayfasına yönlendiriliyorsunuz (Simülasyon)`);
+  const [modalType, setModalType] = useState<'feedback' | 'bug' | null>(null);
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [successMessage, setSuccessMessage] = useState<string | undefined>();
+
+  const openModal = (type: 'feedback' | 'bug') => {
+    setModalType(type);
+    setMessage('');
+    setError(undefined);
+    setSuccessMessage(undefined);
   };
 
-  const SupportRow = ({ icon, title, subtitle }: { icon: any, title: string, subtitle?: string }) => (
-    <TouchableOpacity style={styles.row} onPress={() => handlePress(title)} activeOpacity={0.7}>
+  const handleSend = async () => {
+    if (!modalType) {
+      return;
+    }
+    setError(undefined);
+    setIsSending(true);
+    try {
+      await sendSupportFeedback(modalType, message);
+      setSuccessMessage('Mesajınız iletildi, teşekkürler!');
+      setMessage('');
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const SupportRow = ({ icon, title, subtitle, onPress }: { icon: any, title: string, subtitle?: string, onPress: () => void }) => (
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.iconBox}>
         <Ionicons name={icon} size={24} color={colors.primary} />
       </View>
@@ -26,7 +55,7 @@ export default function SupportScreen() {
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/profile')}>
@@ -37,7 +66,7 @@ export default function SupportScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
+
         <View style={styles.infoBox}>
           <Ionicons name="chatbubbles-outline" size={32} color={colors.primary} />
           <Text variant="body" align="center" style={{ marginTop: spacing.md }}>
@@ -46,16 +75,60 @@ export default function SupportScreen() {
         </View>
 
         <View style={styles.menuContainer}>
-          <SupportRow icon="library-outline" title="Yardım Merkezi" subtitle="Kullanım kılavuzları ve makaleler" />
+          <SupportRow
+            icon="paper-plane-outline"
+            title="Geri Bildirim Gönder"
+            subtitle="Fikirlerinizi bizimle paylaşın"
+            onPress={() => openModal('feedback')}
+          />
           <Divider style={styles.divider} />
-          <SupportRow icon="help-circle-outline" title="Sıkça Sorulan Sorular" subtitle="En çok merak edilenler" />
-          <Divider style={styles.divider} />
-          <SupportRow icon="paper-plane-outline" title="Geri Bildirim Gönder" subtitle="Fikirlerinizi bizimle paylaşın" />
-          <Divider style={styles.divider} />
-          <SupportRow icon="bug-outline" title="Hata Bildir" subtitle="Uygulamada bir sorun mu var?" />
+          <SupportRow
+            icon="bug-outline"
+            title="Hata Bildir"
+            subtitle="Uygulamada bir sorun mu var?"
+            onPress={() => openModal('bug')}
+          />
         </View>
 
       </ScrollView>
+
+      <Modal
+        visible={modalType !== null}
+        title={modalType === 'bug' ? 'Hata Bildir' : 'Geri Bildirim Gönder'}
+        onClose={() => setModalType(null)}
+      >
+        <View style={styles.modalContent}>
+          {successMessage ? (
+            <Text variant="body" color={colors.primary} style={{ marginBottom: spacing.md }}>
+              {successMessage}
+            </Text>
+          ) : (
+            <>
+              <Text variant="body" color={colors.text.secondary} style={{ marginBottom: spacing.md }}>
+                {modalType === 'bug'
+                  ? 'Karşılaştığınız sorunu detaylıca anlatın, en kısa sürede inceleyeceğiz.'
+                  : 'Aklınıza gelen her türlü öneri ve fikri bizimle paylaşabilirsiniz.'}
+              </Text>
+              <Input
+                placeholder="Mesajınız..."
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                numberOfLines={5}
+                style={{ minHeight: 120, textAlignVertical: 'top' }}
+                error={error}
+              />
+              <Button
+                title="Gönder"
+                onPress={handleSend}
+                isLoading={isSending}
+                disabled={!message.trim()}
+                style={{ marginTop: spacing.md }}
+              />
+            </>
+          )}
+        </View>
+      </Modal>
 
     </Screen>
   );
@@ -113,5 +186,8 @@ const styles = StyleSheet.create({
   },
   divider: {
     marginHorizontal: spacing.lg,
-  }
+  },
+  modalContent: {
+    paddingTop: spacing.sm,
+  },
 });

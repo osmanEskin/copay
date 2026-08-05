@@ -8,6 +8,14 @@ export interface AuthUser {
   phone?: string | null;
   email: string;
   twoFactorEnabled?: boolean;
+  createdAt?: string;
+}
+
+export interface NotificationPreferences {
+  notifyNewExpense: boolean;
+  notifyNewBill: boolean;
+  notifyUpcomingBills: boolean;
+  notifyDebtUpdates: boolean;
 }
 
 interface AuthResponse {
@@ -97,6 +105,72 @@ export async function updateProfile(
   return apiFetch<AuthUser>("/auth/profile", {
     method: "PATCH",
     body: { name, username, phone },
+    token,
+  });
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<{ message: string }> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  return apiFetch("/auth/password", {
+    method: "PATCH",
+    body: { currentPassword, newPassword },
+    token,
+  });
+}
+
+export async function deleteAccount(password: string): Promise<{ success: true }> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  const result = await apiFetch<{ success: true }>("/auth/account", {
+    method: "DELETE",
+    body: { password },
+    token,
+  });
+  await deleteToken();
+  return result;
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  return apiFetch("/auth/notification-preferences", { token });
+}
+
+export async function updateNotificationPreferences(
+  prefs: NotificationPreferences
+): Promise<NotificationPreferences> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  return apiFetch("/auth/notification-preferences", {
+    method: "PATCH",
+    body: prefs,
+    token,
+  });
+}
+
+export async function sendSupportFeedback(
+  type: "feedback" | "bug",
+  message: string
+): Promise<{ message: string }> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Oturum bulunamadı");
+  }
+  return apiFetch("/support/feedback", {
+    method: "POST",
+    body: { type, message },
     token,
   });
 }

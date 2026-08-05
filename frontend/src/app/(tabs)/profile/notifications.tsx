@@ -1,31 +1,48 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { Screen, Text, Card, Divider } from '../../../components';
 import { colors, spacing } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '../../../services/api';
+import {
+  getNotificationPreferences,
+  NotificationPreferences,
+  updateNotificationPreferences,
+} from '../../../services/auth';
 
 export default function NotificationsScreen() {
-  const [settings, setSettings] = useState({
-    newExpense: true,
-    newBill: true,
-    dueDate: true,
-    debtUpdate: false,
-    reminders: true,
-  });
+  const [settings, setSettings] = useState<NotificationPreferences | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
-  const toggleSwitch = (key: keyof typeof settings) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  useEffect(() => {
+    getNotificationPreferences().then(setSettings);
+  }, []);
+
+  const toggleSwitch = (key: keyof NotificationPreferences) => {
+    if (!settings) {
+      return;
+    }
+    const next = { ...settings, [key]: !settings[key] };
+    setSettings(next);
+    setErrorMessage(undefined);
+    updateNotificationPreferences(next).catch((error) => {
+      setSettings(settings);
+      setErrorMessage(
+        error instanceof ApiError ? error.message : 'Bir şeyler ters gitti, lütfen tekrar deneyin.'
+      );
+    });
   };
 
-  const SettingRow = ({ title, field }: { title: string, field: keyof typeof settings }) => (
+  const SettingRow = ({ title, field }: { title: string, field: keyof NotificationPreferences }) => (
     <View style={styles.settingRow}>
       <Text variant="body" weight="medium">{title}</Text>
       <Switch
         trackColor={{ false: colors.border, true: colors.primary }}
         thumbColor={colors.surface}
         onValueChange={() => toggleSwitch(field)}
-        value={settings[field]}
+        value={settings ? settings[field] : false}
+        disabled={!settings}
       />
     </View>
   );
@@ -44,19 +61,22 @@ export default function NotificationsScreen() {
 
       <View style={styles.content}>
         <Text variant="caption" color={colors.text.secondary} style={styles.infoText}>
-          Hangi durumlarda anlık bildirim (push notification) almak istediğinizi seçin.
+          Hangi durumlarda bildirim almak istediğinizi seçin.
         </Text>
+        {errorMessage && (
+          <Text variant="caption" color={colors.danger} style={styles.infoText}>
+            {errorMessage}
+          </Text>
+        )}
 
         <Card noPadding style={styles.card}>
-          <SettingRow title="Yeni Harcama Eklendiğinde" field="newExpense" />
+          <SettingRow title="Yeni Harcama Eklendiğinde" field="notifyNewExpense" />
           <Divider />
-          <SettingRow title="Yeni Fatura Eklendiğinde" field="newBill" />
+          <SettingRow title="Yeni Fatura Eklendiğinde" field="notifyNewBill" />
           <Divider />
-          <SettingRow title="Son Ödeme Tarihi Yaklaştığında" field="dueDate" />
+          <SettingRow title="Son Ödeme Tarihi Yaklaştığında" field="notifyUpcomingBills" />
           <Divider />
-          <SettingRow title="Borç Durumu Güncellendiğinde" field="debtUpdate" />
-          <Divider />
-          <SettingRow title="Özel Hatırlatmalar" field="reminders" />
+          <SettingRow title="Borç Durumu Güncellendiğinde" field="notifyDebtUpdates" />
         </Card>
       </View>
 
