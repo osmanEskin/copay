@@ -284,12 +284,9 @@ debtsRoute.post('/settle', zValidator('json', settleSchema), async (c) => {
     return c.json({ error: 'Kendine hesaplaşma kaydı oluşturamazsın' }, 400)
   }
 
-  const myGroups = await db.select({ groupId: groupMembers.groupId }).from(groupMembers).where(eq(groupMembers.userId, payload.sub))
-  const myGroupIds = new Set(myGroups.map((g) => g.groupId))
-  const otherGroups = await db.select({ groupId: groupMembers.groupId }).from(groupMembers).where(eq(groupMembers.userId, otherUserId))
-  const sharesGroup = otherGroups.some((g) => myGroupIds.has(g.groupId))
-  if (!sharesGroup) {
-    return c.json({ error: 'Bu kullanıcıyla ortak bir grubunuz yok' }, 403)
+  const ledger = await computeLedger(payload.sub)
+  if (!ledger.has(otherUserId)) {
+    return c.json({ error: 'Bu kullanıcıyla paylaşılan bir harcama/fatura geçmişiniz yok' }, 403)
   }
 
   const fromUserId = direction === 'i_paid' ? payload.sub : otherUserId
