@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Share } from 'react-native';
 import { router } from 'expo-router';
-import { Screen, Text, Card, Avatar, Button, Input, Divider, Badge, Modal, Loading } from '../../../components';
+import { Screen, Text, Card, Avatar, Button, Input, Divider, Badge, Chip, Modal, Loading } from '../../../components';
 import { colors, spacing, radius, shadow } from '../../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { confirmAsync } from '../../../utils/confirm';
@@ -14,10 +14,27 @@ import {
   joinGroup,
   removeMember,
   updateMemberRole,
+  GROUP_TYPE_LABELS,
+  HOME_BILL_CATEGORIES,
   type Group,
   type GroupDetail,
   type GroupMember,
+  type GroupType,
 } from '../../../services/groups';
+import { getMyBills, iconForBillCategory, type BillSummary } from '../../../services/bills';
+
+function iconForGroupType(type: GroupType): keyof typeof Ionicons.glyphMap {
+  switch (type) {
+    case 'ev':
+      return 'home';
+    case 'seyahat':
+      return 'airplane';
+    case 'arkadas':
+      return 'people';
+    default:
+      return 'folder';
+  }
+}
 
 function initialsOf(name: string): string {
   return name
@@ -37,6 +54,7 @@ export default function GroupScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupDetail, setGroupDetail] = useState<GroupDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [groupBills, setGroupBills] = useState<BillSummary[]>([]);
 
   const [addGroupModalVisible, setAddGroupModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -46,6 +64,7 @@ export default function GroupScreen() {
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
 
   const [groupName, setGroupName] = useState('');
+  const [groupType, setGroupType] = useState<GroupType | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
@@ -77,7 +96,13 @@ export default function GroupScreen() {
     setIsDetailLoading(true);
     setDetailError(undefined);
     try {
-      setGroupDetail(await getGroup(groupId));
+      const detail = await getGroup(groupId);
+      setGroupDetail(detail);
+      if (detail.type === 'ev') {
+        setGroupBills(await getMyBills(groupId));
+      } else {
+        setGroupBills([]);
+      }
     } catch (error) {
       setDetailError(
         error instanceof ApiError ? error.message : 'Grup yüklenemedi, backend çalışıyor mu kontrol et.'
@@ -94,12 +119,17 @@ export default function GroupScreen() {
   };
 
   const handleCreateGroup = async () => {
+    if (!groupType) {
+      setErrorMessage('Bir grup türü seçmelisin.');
+      return;
+    }
     setErrorMessage(undefined);
     setIsSubmitting(true);
     try {
-      const newGroup = await createGroup(groupName);
+      const newGroup = await createGroup(groupName, groupType);
       setCreateModalVisible(false);
       setGroupName('');
+      setGroupType(null);
       await loadGroups();
       await selectGroup(newGroup.id);
     } catch (error) {
@@ -227,11 +257,13 @@ export default function GroupScreen() {
             <TouchableOpacity key={group.id} activeOpacity={0.7} onPress={() => selectGroup(group.id)}>
               <Card style={styles.groupListCard}>
                 <View style={styles.groupListIconWrapper}>
-                  <Ionicons name="home" size={28} color={colors.primary} />
+                  <Ionicons name={iconForGroupType(group.type)} size={28} color={colors.primary} />
                 </View>
                 <View style={styles.groupListInfo}>
                   <Text variant="body" weight="semibold">{group.name}</Text>
-                  <Text variant="caption" color={colors.text.secondary}>{group.memberCount} Üye</Text>
+                  <Text variant="caption" color={colors.text.secondary}>
+                    {GROUP_TYPE_LABELS[group.type]} • {group.memberCount} Üye
+                  </Text>
                 </View>
                 <Badge
                   label={group.role === 'admin' ? 'Admin' : 'Üye'}
@@ -262,13 +294,73 @@ export default function GroupScreen() {
             {/* GRUP BİLGİLERİ KARTI */}
             <Card style={styles.groupCard}>
               <View style={styles.groupIconWrapper}>
-                <Ionicons name="home" size={40} color={colors.primary} />
+                <Ionicons name={iconForGroupType(groupDetail.type)} size={40} color={colors.primary} />
               </View>
               <Text variant="h1">{groupDetail.name}</Text>
               <Text variant="body" color={colors.text.secondary}>
-                {groupDetail.members.length} Üye
+                {GROUP_TYPE_LABELS[groupDetail.type]} • {groupDetail.members.length} Üye
               </Text>
             </Card>
+
+            {groupDetail.type === 'ev' && (
+              <>
+                <View style={styles.membersHeader}>
+                  <Text variant="h2">Ev Faturaları</Text>
+                  <Text variant="caption" color={colors.text.secondary} style={{ marginTop: spacing.xs }}>
+                    Kira her ay aynı tutarla otomatik yenilenir. Diğerlerinin tutarını her ay kendin girersin.
+                  </Text>
+                </View>
+                <Card noPadding style={styles.membersCard}>
+                  {HOME_BILL_CATEGORIES.map((item, index) => {
+                    const existing = groupBills.find(
+                      (b) => b.category === item.category && b.recurrence !== 'none'
+                    );
+                    const needsAmount = existing && existing.variableAmount && existing.amount === 0;
+
+                    return (
+                      <React.Fragment key={item.category}>
+                        <TouchableOpacity
+                          style={styles.memberRow}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            if (existing) {
+                              router.push(`/bills/${existing.id}`);
+                            } else {
+                              router.push({
+                                pathname: '/bills/new',
+                                params: {
+                                  groupId: groupDetail.id,
+                                  title: item.title,
+                                  category: item.category,
+                                  recurrence: 'monthly',
+                                  variableAmount: String(item.variableAmount),
+                                },
+                              });
+                            }
+                          }}
+                        >
+                          <View style={[styles.groupListIconWrapper, { width: 44, height: 44, borderRadius: 22 }]}>
+                            <Ionicons name={iconForBillCategory(item.category)} size={20} color={colors.primary} />
+                          </View>
+                          <View style={styles.memberInfo}>
+                            <Text variant="body" weight="semibold">{item.title}</Text>
+                            <Text variant="caption" color={needsAmount ? colors.danger : colors.text.secondary}>
+                              {existing
+                                ? needsAmount
+                                  ? 'Bu ayın tutarı girilmedi'
+                                  : `₺${existing.amount.toLocaleString('tr-TR')} • Son ödeme: ${new Date(existing.dueDate).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}`
+                                : 'Henüz kurulmadı'}
+                            </Text>
+                          </View>
+                          <Badge label={existing ? 'Kuruldu' : 'Kur'} variant={existing ? 'success' : 'primary'} />
+                        </TouchableOpacity>
+                        {index < HOME_BILL_CATEGORIES.length - 1 && <Divider />}
+                      </React.Fragment>
+                    );
+                  })}
+                </Card>
+              </>
+            )}
 
             {/* DAVET ET BUTONLARI */}
             <View style={styles.inviteSection}>
@@ -388,16 +480,45 @@ export default function GroupScreen() {
       </Modal>
 
       {/* GRUP OLUŞTUR MODALI */}
-      <Modal visible={createModalVisible} title="Grup Oluştur" onClose={() => setCreateModalVisible(false)}>
+      <Modal
+        visible={createModalVisible}
+        title="Grup Oluştur"
+        onClose={() => {
+          setCreateModalVisible(false);
+          setGroupType(null);
+          setErrorMessage(undefined);
+        }}
+      >
         <View style={styles.modalContent}>
           <Input
             label="Grup Adı"
             value={groupName}
             onChangeText={setGroupName}
             placeholder="Ev 3A"
-            error={errorMessage}
           />
-          <Button title="Oluştur" onPress={handleCreateGroup} isLoading={isSubmitting} disabled={!groupName} />
+          <Text variant="body" weight="medium" style={{ marginBottom: spacing.sm }}>Grup Türü</Text>
+          <View style={styles.chipsRow}>
+            {(Object.keys(GROUP_TYPE_LABELS) as GroupType[]).map((type) => (
+              <Chip
+                key={type}
+                label={GROUP_TYPE_LABELS[type]}
+                active={groupType === type}
+                onPress={() => setGroupType(type)}
+              />
+            ))}
+          </View>
+          {errorMessage && (
+            <Text variant="caption" color={colors.danger} style={{ marginTop: spacing.sm }}>
+              {errorMessage}
+            </Text>
+          )}
+          <Button
+            title="Oluştur"
+            onPress={handleCreateGroup}
+            isLoading={isSubmitting}
+            disabled={!groupName || !groupType}
+            style={{ marginTop: spacing.md }}
+          />
         </View>
       </Modal>
 
@@ -519,6 +640,12 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     gap: spacing.sm,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   modalOption: {
     flexDirection: 'row',

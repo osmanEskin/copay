@@ -112,19 +112,22 @@ export default function BillsIndexScreen() {
           contentContainerStyle={styles.listContent}
         >
           {filteredBills.length > 0 ? (
-            filteredBills.map((bill) => (
-              <BillCard
-                key={bill.id}
-                title={bill.title}
-                category={bill.category}
-                amount={bill.amount}
-                dueDate={new Date(bill.dueDate).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
-                payer={bill.payerId === currentUserId ? 'Sen' : bill.payerName}
-                status={bill.status}
-                icon={iconForBillCategory(bill.category)}
-                onPress={() => router.push(`/bills/${bill.id}`)}
-              />
-            ))
+            filteredBills.map((bill) => {
+              const needsAmount = bill.variableAmount && bill.amount === 0;
+              return (
+                <BillCard
+                  key={bill.id}
+                  title={bill.title}
+                  category={bill.category}
+                  amount={needsAmount ? 'Tutar Girilmedi' : bill.amount}
+                  dueDate={new Date(bill.dueDate).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
+                  payer={bill.payerId === currentUserId ? 'Sen' : bill.payerName}
+                  status={bill.status}
+                  icon={iconForBillCategory(bill.category)}
+                  onPress={() => router.push(`/bills/${bill.id}`)}
+                />
+              );
+            })
           ) : (
             <View style={styles.emptyContainer}>
               <Text variant="body" color={colors.text.secondary} align="center">

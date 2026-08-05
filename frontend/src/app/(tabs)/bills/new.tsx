@@ -1,9 +1,27 @@
 import React from 'react';
-import { router } from 'expo-router';
-import { BillForm } from '../../../components';
-import { createBill, type BillInput } from '../../../services/bills';
+import { router, useLocalSearchParams } from 'expo-router';
+import { BillForm, type BillFormCreateDefaults } from '../../../components';
+import { createBill, type BillInput, type BillRecurrence } from '../../../services/bills';
 
 export default function NewBillScreen() {
+  const params = useLocalSearchParams<{
+    groupId?: string;
+    title?: string;
+    category?: string;
+    recurrence?: string;
+    variableAmount?: string;
+  }>();
+
+  const createDefaults: BillFormCreateDefaults | undefined = params.groupId
+    ? {
+        groupId: params.groupId,
+        title: params.title ?? '',
+        category: params.category ?? '',
+        recurrence: (params.recurrence as BillRecurrence) ?? 'monthly',
+        variableAmount: params.variableAmount === 'true',
+      }
+    : undefined;
+
   const handleSubmit = async (input: BillInput) => {
     await createBill(input);
     router.back();
@@ -14,6 +32,7 @@ export default function NewBillScreen() {
       mode="create"
       headerTitle="Yeni Fatura"
       submitLabel="Faturayı Kaydet"
+      createDefaults={createDefaults}
       onSubmit={handleSubmit}
     />
   );

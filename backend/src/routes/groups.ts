@@ -5,7 +5,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { groupMembers, groupRole, groups, users } from '../db/schema.js'
+import { groupMembers, groupRole, groups, groupType, users } from '../db/schema.js'
 
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
@@ -32,14 +32,16 @@ function getMembership(groupId: string, userId: string) {
 
 const createGroupSchema = z.object({
   name: z.string().min(1),
+  type: z.enum(groupType),
 })
 
 groupsRoute.post('/', zValidator('json', createGroupSchema), async (c) => {
   const payload = c.get('jwtPayload') as { sub: string }
-  const { name } = c.req.valid('json')
+  const { name, type } = c.req.valid('json')
 
   const [group] = await db.insert(groups).values({
     name,
+    type,
     inviteCode: generateInviteCode(),
     createdBy: payload.sub,
   }).returning()
@@ -56,6 +58,7 @@ groupsRoute.get('/mine', async (c) => {
     .select({
       id: groups.id,
       name: groups.name,
+      type: groups.type,
       inviteCode: groups.inviteCode,
       createdAt: groups.createdAt,
       role: groupMembers.role,

@@ -48,10 +48,12 @@ export const twoFactorCodes = pgTable('two_factor_codes', {
 })
 
 export const groupRole = ['admin', 'member'] as const
+export const groupType = ['ev', 'seyahat', 'arkadas', 'diger'] as const
 
 export const groups = pgTable('groups', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  type: text('type', { enum: groupType }).notNull().default('diger'),
   inviteCode: text('invite_code').notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -107,6 +109,7 @@ export const bills = pgTable('bills', {
   splitMethod: text('split_method', { enum: expenseSplitMethod }).notNull().default('equal'),
   recurrence: text('recurrence', { enum: billRecurrence }).notNull().default('none'),
   reminder: text('reminder', { enum: billReminder }).notNull().default('none'),
+  variableAmount: boolean('variable_amount').notNull().default(false),
   paidAt: timestamp('paid_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

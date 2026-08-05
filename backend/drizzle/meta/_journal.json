@@ -71,6 +71,13 @@
       "when": 1785917177178,
       "tag": "0009_overrated_newton_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785921587374,
+      "tag": "0010_legal_the_hunter",
+      "breakpoints": true
     }
   ]
 }

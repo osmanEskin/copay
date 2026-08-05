@@ -2,10 +2,27 @@ import { apiFetch } from "./api";
 import { getToken } from "./tokenStorage";
 
 export type GroupRole = "admin" | "member";
+export type GroupType = "ev" | "seyahat" | "arkadas" | "diger";
+
+export const GROUP_TYPE_LABELS: Record<GroupType, string> = {
+  ev: "Ev",
+  seyahat: "Seyahat",
+  arkadas: "Arkadaş Grubu",
+  diger: "Diğer",
+};
+
+export const HOME_BILL_CATEGORIES: { category: string; title: string; variableAmount: boolean }[] = [
+  { category: "Kira", title: "Kira", variableAmount: false },
+  { category: "Elektrik", title: "Elektrik", variableAmount: true },
+  { category: "Su", title: "Su", variableAmount: true },
+  { category: "Doğalgaz", title: "Doğalgaz", variableAmount: true },
+  { category: "İnternet", title: "İnternet", variableAmount: true },
+];
 
 export interface Group {
   id: string;
   name: string;
+  type: GroupType;
   inviteCode: string;
   createdAt: string;
   role: GroupRole;
@@ -23,6 +40,7 @@ export interface GroupMember {
 export interface GroupDetail {
   id: string;
   name: string;
+  type: GroupType;
   inviteCode: string;
   createdAt: string;
   members: GroupMember[];
@@ -47,8 +65,8 @@ export function getGroup(groupId: string): Promise<GroupDetail> {
   return authedFetch(`/groups/${groupId}`);
 }
 
-export function createGroup(name: string): Promise<Group> {
-  return authedFetch("/groups", { method: "POST", body: { name } });
+export function createGroup(name: string, type: GroupType): Promise<Group> {
+  return authedFetch("/groups", { method: "POST", body: { name, type } });
 }
 
 export function joinGroup(code: string): Promise<Group> {

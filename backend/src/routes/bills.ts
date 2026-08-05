@@ -64,8 +64,39 @@ const billInputSchema = z.object({
   splitMethod: z.enum(expenseSplitMethod),
   recurrence: z.enum(billRecurrence),
   reminder: z.enum(billReminder),
+  variableAmount: z.boolean(),
   participants: z.array(participantSchema).min(1),
 })
+
+function addInterval(dateIso: string, recurrence: (typeof billRecurrence)[number]): string {
+  const monthsByRecurrence: Partial<Record<(typeof billRecurrence)[number], number>> = {
+    monthly: 1,
+    quarterly: 3,
+    semiannual: 6,
+    yearly: 12,
+  }
+
+  const [year, month, day] = dateIso.split('-').map(Number)
+
+  if (recurrence === 'weekly') {
+    const date = new Date(year, month - 1, day)
+    date.setDate(date.getDate() + 7)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
+
+  const months = monthsByRecurrence[recurrence]
+  if (!months) {
+    return dateIso
+  }
+
+  const totalMonth = month - 1 + months
+  const targetYear = year + Math.floor(totalMonth / 12)
+  const targetMonth = totalMonth % 12
+  const lastDayOfTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate()
+  const targetDay = Math.min(day, lastDayOfTargetMonth)
+
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`
+}
 
 async function validateBillInput(input: z.infer<typeof billInputSchema>, requesterId: string) {
   const requesterMembership = await getGroupMembership(input.groupId, requesterId)
@@ -112,6 +143,7 @@ billsRoute.post('/', zValidator('json', billInputSchema), async (c) => {
     splitMethod: input.splitMethod,
     recurrence: input.recurrence,
     reminder: input.reminder,
+    variableAmount: input.variableAmount,
   }).returning()
 
   await db.insert(billParticipants).values(
@@ -146,6 +178,7 @@ billsRoute.get('/mine', async (c) => {
       splitMethod: bills.splitMethod,
       recurrence: bills.recurrence,
       reminder: bills.reminder,
+      variableAmount: bills.variableAmount,
       paidAt: bills.paidAt,
       groupId: bills.groupId,
       groupName: groups.name,
@@ -178,6 +211,7 @@ billsRoute.get('/history', async (c) => {
       splitMethod: bills.splitMethod,
       recurrence: bills.recurrence,
       reminder: bills.reminder,
+      variableAmount: bills.variableAmount,
       paidAt: bills.paidAt,
       groupId: bills.groupId,
       groupName: groups.name,
@@ -210,6 +244,7 @@ billsRoute.get('/recurring', async (c) => {
       splitMethod: bills.splitMethod,
       recurrence: bills.recurrence,
       reminder: bills.reminder,
+      variableAmount: bills.variableAmount,
       paidAt: bills.paidAt,
       groupId: bills.groupId,
       groupName: groups.name,
@@ -297,6 +332,7 @@ billsRoute.patch('/:id', zValidator('json', billInputSchema), async (c) => {
     splitMethod: input.splitMethod,
     recurrence: input.recurrence,
     reminder: input.reminder,
+    variableAmount: input.variableAmount,
   }).where(eq(bills.id, billId)).returning()
 
   await db.delete(billParticipants).where(eq(billParticipants.billId, billId))
@@ -325,7 +361,45 @@ billsRoute.post('/:id/pay', async (c) => {
     return c.json({ error: 'Bu faturaya erişiminiz yok' }, 403)
   }
 
+  if (existing.amount <= 0) {
+    return c.json({ error: 'Ödeme olarak işaretlemeden önce bu ayın tutarını girmelisin' }, 400)
+  }
+
   const [updated] = await db.update(bills).set({ paidAt: new Date() }).where(eq(bills.id, billId)).returning()
+
+  if (existing.recurrence !== 'none') {
+    const existingParticipants = await db
+      .select({ userId: billParticipants.userId, shareAmount: billParticipants.shareAmount })
+      .from(billParticipants)
+      .where(eq(billParticipants.billId, billId))
+
+    const nextAmount = existing.variableAmount ? 0 : existing.amount
+
+    const [nextBill] = await db.insert(bills).values({
+      groupId: existing.groupId,
+      title: existing.title,
+      category: existing.category,
+      description: existing.description,
+      amount: nextAmount,
+      billDate: addInterval(existing.billDate, existing.recurrence),
+      dueDate: addInterval(existing.dueDate, existing.recurrence),
+      payerId: existing.payerId,
+      splitMethod: existing.splitMethod,
+      recurrence: existing.recurrence,
+      reminder: existing.reminder,
+      variableAmount: existing.variableAmount,
+    }).returning()
+
+    if (existingParticipants.length > 0) {
+      await db.insert(billParticipants).values(
+        existingParticipants.map((p) => ({
+          billId: nextBill.id,
+          userId: p.userId,
+          shareAmount: existing.variableAmount ? 0 : p.shareAmount,
+        }))
+      )
+    }
+  }
 
   return c.json({ ...updated, status: computeStatus(updated.dueDate, updated.paidAt) })
 })

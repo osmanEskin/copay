@@ -63,6 +63,7 @@ export default function RecurringBillsScreen() {
       splitMethod: detail.splitMethod,
       recurrence: 'none',
       reminder: detail.reminder,
+      variableAmount: detail.variableAmount,
       participants: detail.participants.map((p) => ({ userId: p.userId, shareAmount: p.shareAmount })),
     });
     loadRecurring();

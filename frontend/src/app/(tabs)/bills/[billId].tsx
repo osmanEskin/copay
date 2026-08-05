@@ -88,6 +88,7 @@ export default function BillDetailScreen() {
   }
 
   const isPaid = bill.status === 'Ödendi';
+  const needsAmount = bill.variableAmount && bill.amount === 0;
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
@@ -113,13 +114,19 @@ export default function BillDetailScreen() {
             <Ionicons name={iconForBillCategory(bill.category)} size={32} color={isPaid ? colors.success : colors.primary} />
           </View>
           <Text variant="h1" align="center" style={styles.title}>{bill.title}</Text>
-          <Text variant="h1" color={isPaid ? colors.success : colors.primary} align="center" style={styles.amount}>
-            ₺{bill.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-          </Text>
+          {needsAmount ? (
+            <Text variant="h1" color={colors.danger} align="center" style={styles.amount}>
+              Tutar Girilmedi
+            </Text>
+          ) : (
+            <Text variant="h1" color={isPaid ? colors.success : colors.primary} align="center" style={styles.amount}>
+              ₺{bill.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+            </Text>
+          )}
 
           <Badge
-            label={bill.status}
-            variant={isPaid ? 'success' : 'default'}
+            label={needsAmount ? 'Tutar Bekleniyor' : bill.status}
+            variant={needsAmount ? 'danger' : isPaid ? 'success' : 'default'}
             style={{ marginBottom: spacing.md }}
           />
 
@@ -180,7 +187,14 @@ export default function BillDetailScreen() {
               </Text>
             </View>
             <View style={styles.actionButtons}>
-              {!isPaid && (
+              {!isPaid && needsAmount && (
+                <Button
+                  title="Bu Ayın Tutarını Gir"
+                  onPress={() => router.push(`/bills/${billId}/edit`)}
+                  style={styles.actionBtn}
+                />
+              )}
+              {!isPaid && !needsAmount && (
                 <Button
                   title="Ödendi Olarak İşaretle"
                   onPress={handleMarkPaid}

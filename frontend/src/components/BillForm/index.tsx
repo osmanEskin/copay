@@ -36,12 +36,22 @@ export interface BillFormInitialValues {
   splitMethod: SplitMethod;
   recurrence: BillRecurrence;
   reminder: BillReminder;
+  variableAmount: boolean;
   participants: { userId: string; shareAmount: number }[];
+}
+
+export interface BillFormCreateDefaults {
+  groupId: string;
+  title: string;
+  category: string;
+  recurrence: BillRecurrence;
+  variableAmount: boolean;
 }
 
 interface BillFormProps {
   mode: 'create' | 'edit';
   initialValues?: BillFormInitialValues;
+  createDefaults?: BillFormCreateDefaults;
   onSubmit: (input: BillInput) => Promise<void>;
   submitLabel: string;
   headerTitle: string;
@@ -76,16 +86,16 @@ function ddmmyyyyToIso(text: string): string | null {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export function BillForm({ mode, initialValues, onSubmit, submitLabel, headerTitle }: BillFormProps) {
+export function BillForm({ mode, initialValues, createDefaults, onSubmit, submitLabel, headerTitle }: BillFormProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [myGroups, setMyGroups] = useState<Group[]>([]);
-  const [groupId, setGroupId] = useState(initialValues?.groupId ?? '');
+  const [groupId, setGroupId] = useState(initialValues?.groupId ?? createDefaults?.groupId ?? '');
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(mode === 'create');
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
 
-  const [title, setTitle] = useState(initialValues?.title ?? '');
-  const [category, setCategory] = useState(initialValues?.category ?? BILL_CATEGORIES[0]);
+  const [title, setTitle] = useState(initialValues?.title ?? createDefaults?.title ?? '');
+  const [category, setCategory] = useState(initialValues?.category ?? createDefaults?.category ?? BILL_CATEGORIES[0]);
   const [description, setDescription] = useState(initialValues?.description ?? '');
   const [amountText, setAmountText] = useState(initialValues?.amount ?? '');
   const [dueDateText, setDueDateText] = useState(
@@ -93,8 +103,9 @@ export function BillForm({ mode, initialValues, onSubmit, submitLabel, headerTit
   );
   const [payerId, setPayerId] = useState(initialValues?.payerId ?? '');
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(initialValues?.splitMethod ?? 'equal');
-  const [recurrence, setRecurrence] = useState<BillRecurrence>(initialValues?.recurrence ?? 'none');
+  const [recurrence, setRecurrence] = useState<BillRecurrence>(initialValues?.recurrence ?? createDefaults?.recurrence ?? 'none');
   const [reminder, setReminder] = useState<BillReminder>(initialValues?.reminder ?? 'none');
+  const [variableAmount] = useState<boolean>(initialValues?.variableAmount ?? createDefaults?.variableAmount ?? false);
   const billDate = initialValues?.billDate ?? todayIso();
 
   const initialParticipantValues = useMemo(() => {
@@ -210,6 +221,7 @@ export function BillForm({ mode, initialValues, onSubmit, submitLabel, headerTit
         splitMethod,
         recurrence,
         reminder,
+        variableAmount,
         participants: result.participants,
       });
     } catch (error) {
@@ -256,7 +268,7 @@ export function BillForm({ mode, initialValues, onSubmit, submitLabel, headerTit
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-        {mode === 'create' && myGroups.length > 1 && (
+        {mode === 'create' && !createDefaults && myGroups.length > 1 && (
           <View style={styles.section}>
             <Text variant="body" weight="bold" style={styles.sectionTitle}>Grup</Text>
             <View style={styles.chipsRow}>
@@ -281,6 +293,11 @@ export function BillForm({ mode, initialValues, onSubmit, submitLabel, headerTit
 
         <View style={styles.section}>
           <Text variant="body" weight="bold" style={styles.sectionTitle}>Finansal Bilgiler</Text>
+          {variableAmount && (
+            <Text variant="caption" color={colors.text.secondary} style={{ marginBottom: spacing.sm }}>
+              Bu faturanın tutarı aydan aya değişir, her ay bu ekrandan güncel tutarı gireceksin.
+            </Text>
+          )}
           <CurrencyInput label="Tutar" value={amountText} onChangeText={setAmountText} />
 
           <View style={styles.dateSelectorRow}>

@@ -2,7 +2,17 @@ import { apiFetch } from "./api";
 import { getToken } from "./tokenStorage";
 import type { SplitMethod } from "../hooks/useParticipantSplit";
 
-export const BILL_CATEGORIES = ["Fatura", "Abonelik", "Kira", "Aidat", "Diğer"];
+export const BILL_CATEGORIES = [
+  "Fatura",
+  "Abonelik",
+  "Kira",
+  "Elektrik",
+  "Su",
+  "Doğalgaz",
+  "İnternet",
+  "Aidat",
+  "Diğer",
+];
 
 export type BillStatus = "Bekliyor" | "Yaklaşan" | "Geciken" | "Ödendi";
 export type BillRecurrence = "none" | "weekly" | "monthly" | "quarterly" | "semiannual" | "yearly";
@@ -41,6 +51,7 @@ export interface BillInput {
   splitMethod: SplitMethod;
   recurrence: BillRecurrence;
   reminder: BillReminder;
+  variableAmount: boolean;
   participants: BillParticipantInput[];
 }
 
@@ -55,6 +66,7 @@ export interface BillSummary {
   splitMethod: SplitMethod;
   recurrence: BillRecurrence;
   reminder: BillReminder;
+  variableAmount: boolean;
   paidAt: string | null;
   status: BillStatus;
   groupId: string;
@@ -125,6 +137,14 @@ export function iconForBillCategory(category: string): keyof typeof import("@exp
       return "wifi";
     case "Kira":
       return "home";
+    case "Elektrik":
+      return "flash-outline";
+    case "Su":
+      return "water-outline";
+    case "Doğalgaz":
+      return "flame-outline";
+    case "İnternet":
+      return "wifi-outline";
     case "Aidat":
       return "business";
     default:
