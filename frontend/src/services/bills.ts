@@ -16,7 +16,6 @@ export const BILL_CATEGORIES = [
 
 export type BillStatus = "Bekliyor" | "Yaklaşan" | "Geciken" | "Ödendi";
 export type BillRecurrence = "none" | "weekly" | "monthly" | "quarterly" | "semiannual" | "yearly";
-export type BillReminder = "none" | "1_day" | "3_days" | "1_week";
 
 export const RECURRENCE_LABELS: Record<BillRecurrence, string> = {
   none: "Tek Sefer",
@@ -25,13 +24,6 @@ export const RECURRENCE_LABELS: Record<BillRecurrence, string> = {
   quarterly: "3 Aylık",
   semiannual: "6 Aylık",
   yearly: "Yıllık",
-};
-
-export const REMINDER_LABELS: Record<BillReminder, string> = {
-  none: "Yok",
-  "1_day": "1 gün önce",
-  "3_days": "3 gün önce",
-  "1_week": "1 hafta önce",
 };
 
 export interface BillParticipantInput {
@@ -50,7 +42,7 @@ export interface BillInput {
   payerId: string;
   splitMethod: SplitMethod;
   recurrence: BillRecurrence;
-  reminder: BillReminder;
+  reminderDaysBefore: number;
   variableAmount: boolean;
   participants: BillParticipantInput[];
 }
@@ -65,7 +57,8 @@ export interface BillSummary {
   dueDate: string;
   splitMethod: SplitMethod;
   recurrence: BillRecurrence;
-  reminder: BillReminder;
+  reminderDaysBefore: number;
+  reminderSentAt: string | null;
   variableAmount: boolean;
   paidAt: string | null;
   status: BillStatus;

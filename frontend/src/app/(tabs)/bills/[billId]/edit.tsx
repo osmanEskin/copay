@@ -22,7 +22,7 @@ export default function EditBillScreen() {
         payerId: bill.payerId,
         splitMethod: bill.splitMethod,
         recurrence: bill.recurrence,
-        reminder: bill.reminder,
+        reminderDaysBefore: bill.reminderDaysBefore,
         variableAmount: bill.variableAmount,
         participants: bill.participants.map((p) => ({ userId: p.userId, shareAmount: p.shareAmount })),
       });

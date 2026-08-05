@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, date, boolean, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, numeric, integer, date, boolean, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -94,7 +94,6 @@ export const expenseParticipants = pgTable('expense_participants', {
 })
 
 export const billRecurrence = ['none', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly'] as const
-export const billReminder = ['none', '1_day', '3_days', '1_week'] as const
 
 export const bills = pgTable('bills', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -108,7 +107,8 @@ export const bills = pgTable('bills', {
   payerId: uuid('payer_id').notNull().references(() => users.id),
   splitMethod: text('split_method', { enum: expenseSplitMethod }).notNull().default('equal'),
   recurrence: text('recurrence', { enum: billRecurrence }).notNull().default('none'),
-  reminder: text('reminder', { enum: billReminder }).notNull().default('none'),
+  reminderDaysBefore: integer('reminder_days_before').notNull().default(0),
+  reminderSentAt: timestamp('reminder_sent_at'),
   variableAmount: boolean('variable_amount').notNull().default(false),
   paidAt: timestamp('paid_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

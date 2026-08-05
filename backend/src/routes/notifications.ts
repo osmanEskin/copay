@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { jwt } from 'hono/jwt'
-import { and, desc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { bills, expenses, groupMembers, groups, settlements, users } from '../db/schema.js'
 
@@ -29,9 +29,6 @@ notificationsRoute.get('/', async (c) => {
 
   const now = new Date()
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
-  const todayIso = now.toISOString().slice(0, 10)
-  const threeDaysIso = threeDaysFromNow.toISOString().slice(0, 10)
 
   const recentItems: { id: string; type: 'expense_added' | 'bill_added' | 'debt_settled'; message: string; groupName: string; createdAt: Date }[] = []
 
@@ -149,8 +146,7 @@ notificationsRoute.get('/', async (c) => {
         and(
           inArray(bills.groupId, myGroupIds),
           isNull(bills.paidAt),
-          gte(bills.dueDate, todayIso),
-          lte(bills.dueDate, threeDaysIso)
+          isNotNull(bills.reminderSentAt)
         )
       )
       .orderBy(bills.dueDate)

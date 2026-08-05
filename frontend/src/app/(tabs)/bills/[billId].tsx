@@ -137,6 +137,14 @@ export default function BillDetailScreen() {
                 Son Ödeme: {new Date(bill.dueDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
               </Text>
             </View>
+            {bill.reminderDaysBefore > 0 && (
+              <View style={[styles.infoRow, { marginTop: spacing.xs }]}>
+                <Ionicons name="notifications-outline" size={16} color={colors.text.secondary} />
+                <Text variant="caption" color={colors.text.secondary} style={styles.infoText}>
+                  Hatırlatma: {bill.reminderDaysBefore} gün önce{bill.reminderSentAt ? ' • Gönderildi' : ''}
+                </Text>
+              </View>
+            )}
           </View>
 
           {bill.description && (

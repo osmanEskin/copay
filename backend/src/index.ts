@@ -11,6 +11,8 @@ import bills from './routes/bills.js'
 import debts from './routes/debts.js'
 import notifications from './routes/notifications.js'
 import support from './routes/support.js'
+import { runDailyBillCheck } from './lib/billReminders.js'
+import { scheduleDaily } from './lib/scheduler.js'
 
 const app = new Hono()
 
@@ -32,6 +34,11 @@ app.get('/health/db', async (c) => {
   const result = await db.execute(sql`select 1 as ok`)
   return c.json({ db: result.rows[0] })
 })
+
+runDailyBillCheck()
+  .then((count) => console.log(`Bill reminder check: ${count} reminder(s) fired`))
+  .catch((error) => console.error('Bill reminder check failed:', error))
+scheduleDaily(runDailyBillCheck, 9, 0)
 
 serve({
   fetch: app.fetch,

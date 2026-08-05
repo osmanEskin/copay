@@ -17,10 +17,8 @@ import { getGroup, getMyGroups, type Group, type GroupMember } from '../../servi
 import {
   BILL_CATEGORIES,
   RECURRENCE_LABELS,
-  REMINDER_LABELS,
   type BillInput,
   type BillRecurrence,
-  type BillReminder,
 } from '../../services/bills';
 import { useParticipantSplit, type SplitMethod } from '../../hooks/useParticipantSplit';
 
@@ -35,7 +33,7 @@ export interface BillFormInitialValues {
   payerId: string;
   splitMethod: SplitMethod;
   recurrence: BillRecurrence;
-  reminder: BillReminder;
+  reminderDaysBefore: number;
   variableAmount: boolean;
   participants: { userId: string; shareAmount: number }[];
 }
@@ -104,7 +102,9 @@ export function BillForm({ mode, initialValues, createDefaults, onSubmit, submit
   const [payerId, setPayerId] = useState(initialValues?.payerId ?? '');
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(initialValues?.splitMethod ?? 'equal');
   const [recurrence, setRecurrence] = useState<BillRecurrence>(initialValues?.recurrence ?? createDefaults?.recurrence ?? 'none');
-  const [reminder, setReminder] = useState<BillReminder>(initialValues?.reminder ?? 'none');
+  const [reminderDaysBeforeText, setReminderDaysBeforeText] = useState(
+    initialValues ? String(initialValues.reminderDaysBefore) : '0'
+  );
   const [variableAmount] = useState<boolean>(initialValues?.variableAmount ?? createDefaults?.variableAmount ?? false);
   const billDate = initialValues?.billDate ?? todayIso();
 
@@ -200,6 +200,11 @@ export function BillForm({ mode, initialValues, createDefaults, onSubmit, submit
       setErrorMessage('Ödeyecek kişiyi seçmelisin.');
       return;
     }
+    const reminderDaysBefore = parseInt(reminderDaysBeforeText, 10);
+    if (reminderDaysBeforeText && (isNaN(reminderDaysBefore) || reminderDaysBefore < 0)) {
+      setErrorMessage('Hatırlatma için 0 veya daha büyük bir gün sayısı gir.');
+      return;
+    }
 
     const result = computeParticipants(splitMethod, amountText);
     if ('error' in result) {
@@ -220,7 +225,7 @@ export function BillForm({ mode, initialValues, createDefaults, onSubmit, submit
         payerId,
         splitMethod,
         recurrence,
-        reminder,
+        reminderDaysBefore: reminderDaysBeforeText ? reminderDaysBefore : 0,
         variableAmount,
         participants: result.participants,
       });
@@ -365,12 +370,13 @@ export function BillForm({ mode, initialValues, createDefaults, onSubmit, submit
 
         <View style={styles.section}>
           <Text variant="body" weight="bold" style={styles.sectionTitle}>Ek Detaylar</Text>
-          <Text variant="body" weight="medium" style={styles.subTitle}>Hatırlatma</Text>
-          <View style={styles.chipsRow}>
-            {(Object.keys(REMINDER_LABELS) as BillReminder[]).map((r) => (
-              <Chip key={r} label={REMINDER_LABELS[r]} active={reminder === r} onPress={() => setReminder(r)} />
-            ))}
-          </View>
+          <Input
+            label="Hatırlatma (kaç gün önce, 0 = hatırlatma yok)"
+            placeholder="0"
+            value={reminderDaysBeforeText}
+            onChangeText={setReminderDaysBeforeText}
+            keyboardType="number-pad"
+          />
 
           <View style={{ marginTop: spacing.md }}>
             <Input

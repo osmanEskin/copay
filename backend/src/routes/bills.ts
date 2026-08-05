@@ -7,7 +7,6 @@ import { db } from '../db/index.js'
 import {
   billParticipants,
   billRecurrence,
-  billReminder,
   bills,
   expenseSplitMethod,
   groupMembers,
@@ -63,7 +62,7 @@ const billInputSchema = z.object({
   payerId: z.string().uuid(),
   splitMethod: z.enum(expenseSplitMethod),
   recurrence: z.enum(billRecurrence),
-  reminder: z.enum(billReminder),
+  reminderDaysBefore: z.number().int().min(0),
   variableAmount: z.boolean(),
   participants: z.array(participantSchema).min(1),
 })
@@ -142,7 +141,7 @@ billsRoute.post('/', zValidator('json', billInputSchema), async (c) => {
     payerId: input.payerId,
     splitMethod: input.splitMethod,
     recurrence: input.recurrence,
-    reminder: input.reminder,
+    reminderDaysBefore: input.reminderDaysBefore,
     variableAmount: input.variableAmount,
   }).returning()
 
@@ -177,7 +176,8 @@ billsRoute.get('/mine', async (c) => {
       dueDate: bills.dueDate,
       splitMethod: bills.splitMethod,
       recurrence: bills.recurrence,
-      reminder: bills.reminder,
+      reminderDaysBefore: bills.reminderDaysBefore,
+      reminderSentAt: bills.reminderSentAt,
       variableAmount: bills.variableAmount,
       paidAt: bills.paidAt,
       groupId: bills.groupId,
@@ -210,7 +210,8 @@ billsRoute.get('/history', async (c) => {
       dueDate: bills.dueDate,
       splitMethod: bills.splitMethod,
       recurrence: bills.recurrence,
-      reminder: bills.reminder,
+      reminderDaysBefore: bills.reminderDaysBefore,
+      reminderSentAt: bills.reminderSentAt,
       variableAmount: bills.variableAmount,
       paidAt: bills.paidAt,
       groupId: bills.groupId,
@@ -243,7 +244,8 @@ billsRoute.get('/recurring', async (c) => {
       dueDate: bills.dueDate,
       splitMethod: bills.splitMethod,
       recurrence: bills.recurrence,
-      reminder: bills.reminder,
+      reminderDaysBefore: bills.reminderDaysBefore,
+      reminderSentAt: bills.reminderSentAt,
       variableAmount: bills.variableAmount,
       paidAt: bills.paidAt,
       groupId: bills.groupId,
@@ -331,7 +333,8 @@ billsRoute.patch('/:id', zValidator('json', billInputSchema), async (c) => {
     payerId: input.payerId,
     splitMethod: input.splitMethod,
     recurrence: input.recurrence,
-    reminder: input.reminder,
+    reminderDaysBefore: input.reminderDaysBefore,
+    reminderSentAt: null,
     variableAmount: input.variableAmount,
   }).where(eq(bills.id, billId)).returning()
 
@@ -386,7 +389,7 @@ billsRoute.post('/:id/pay', async (c) => {
       payerId: existing.payerId,
       splitMethod: existing.splitMethod,
       recurrence: existing.recurrence,
-      reminder: existing.reminder,
+      reminderDaysBefore: existing.reminderDaysBefore,
       variableAmount: existing.variableAmount,
     }).returning()
 
