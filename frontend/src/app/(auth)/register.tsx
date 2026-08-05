@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, View, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Screen, Input, Button, Text } from "../../components";
 import { colors, spacing } from "../../theme";
@@ -11,16 +11,18 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
   const handleRegister = async () => {
+    setErrorMessage(undefined);
     setIsLoading(true);
     try {
       await register(name, email, password);
       router.push("/verify-email");
     } catch (error) {
-      const message =
-        error instanceof ApiError ? error.message : "Kayıt oluşturulamadı, lütfen tekrar deneyin.";
-      Alert.alert("Kayıt Başarısız", message);
+      setErrorMessage(
+        error instanceof ApiError ? error.message : "Kayıt oluşturulamadı, lütfen tekrar deneyin."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -63,6 +65,7 @@ export default function RegisterScreen() {
             onChangeText={setPassword}
             placeholder="••••••••"
             secureTextEntry
+            error={errorMessage}
           />
           
           <Button 
