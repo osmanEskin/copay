@@ -27,7 +27,7 @@ export function Divider({
 const styles = StyleSheet.create({
   horizontal: {
     height: 1,
-    width: '100%',
+    alignSelf: 'stretch',
     backgroundColor: colors.border,
   },
   vertical: {
