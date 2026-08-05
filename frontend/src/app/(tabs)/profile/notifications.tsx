@@ -11,6 +11,29 @@ import {
   updateNotificationPreferences,
 } from '../../../services/auth';
 
+const SettingRow = ({
+  title,
+  value,
+  disabled,
+  onToggle,
+}: {
+  title: string;
+  value: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}) => (
+  <View style={styles.settingRow}>
+    <Text variant="body" weight="medium">{title}</Text>
+    <Switch
+      trackColor={{ false: colors.border, true: colors.primary }}
+      thumbColor={colors.surface}
+      onValueChange={onToggle}
+      value={value}
+      disabled={disabled}
+    />
+  </View>
+);
+
 export default function NotificationsScreen() {
   const [settings, setSettings] = useState<NotificationPreferences | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
@@ -33,19 +56,6 @@ export default function NotificationsScreen() {
       );
     });
   };
-
-  const SettingRow = ({ title, field }: { title: string, field: keyof NotificationPreferences }) => (
-    <View style={styles.settingRow}>
-      <Text variant="body" weight="medium">{title}</Text>
-      <Switch
-        trackColor={{ false: colors.border, true: colors.primary }}
-        thumbColor={colors.surface}
-        onValueChange={() => toggleSwitch(field)}
-        value={settings ? settings[field] : false}
-        disabled={!settings}
-      />
-    </View>
-  );
 
   return (
     <Screen safeArea backgroundColor={colors.background}>
@@ -70,13 +80,33 @@ export default function NotificationsScreen() {
         )}
 
         <Card noPadding style={styles.card}>
-          <SettingRow title="Yeni Harcama Eklendiğinde" field="notifyNewExpense" />
+          <SettingRow
+            title="Yeni Harcama Eklendiğinde"
+            value={settings?.notifyNewExpense ?? false}
+            disabled={!settings}
+            onToggle={() => toggleSwitch('notifyNewExpense')}
+          />
           <Divider />
-          <SettingRow title="Yeni Fatura Eklendiğinde" field="notifyNewBill" />
+          <SettingRow
+            title="Yeni Fatura Eklendiğinde"
+            value={settings?.notifyNewBill ?? false}
+            disabled={!settings}
+            onToggle={() => toggleSwitch('notifyNewBill')}
+          />
           <Divider />
-          <SettingRow title="Son Ödeme Tarihi Yaklaştığında" field="notifyUpcomingBills" />
+          <SettingRow
+            title="Son Ödeme Tarihi Yaklaştığında"
+            value={settings?.notifyUpcomingBills ?? false}
+            disabled={!settings}
+            onToggle={() => toggleSwitch('notifyUpcomingBills')}
+          />
           <Divider />
-          <SettingRow title="Borç Durumu Güncellendiğinde" field="notifyDebtUpdates" />
+          <SettingRow
+            title="Borç Durumu Güncellendiğinde"
+            value={settings?.notifyDebtUpdates ?? false}
+            disabled={!settings}
+            onToggle={() => toggleSwitch('notifyDebtUpdates')}
+          />
         </Card>
       </View>
 
